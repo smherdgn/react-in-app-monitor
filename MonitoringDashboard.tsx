@@ -25,6 +25,7 @@ import {
   garantiDarkGray,
 } from "./styles.tsx"; // Added garantiDarkGray
 import MonitoringService from "./MonitoringService";
+import { useIndexedDB } from "./hooks.ts";
 
 // --- UI COMPONENTS (including new TimelineChart) ---
 
@@ -1038,7 +1039,8 @@ const ErrorLogView: React.FC<TabViewProps> = ({
 
 const MonitoringDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
-  const [logs, setLogs] = useState<AllLogsState>({
+
+  const [logs, setLogs] = useIndexedDB("monitoring.logs", {
     pages: [],
     components: [],
     api: [],
