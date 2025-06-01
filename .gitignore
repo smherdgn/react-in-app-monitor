@@ -1,0 +1,69 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Vite cache
+.vite/
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS dosyaları
+.DS_Store
+Thumbs.db
+
+# IDE/editor config dosyaları
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Test coverage
+coverage/
+
+# environment variables
+.env
+.env.*
+!.env.example
+
+# local SSL certificates
+*.pem
+
+# Yarn
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.yarnrc.yml
+
+# Mac için
+*.DS_Store
+
+# Windows için
+ehthumbs.db
+Icon?
+Desktop.ini
+
+# React monitoring tools / temp debug data
+*.tgz
+*.local
+.cache/
+
+# Typescript build outputs
+*.tsbuildinfo
+
+# Optional: Storybook
+storybook-static/
+
+# Optional: Sentry CLI auth
+.sentryclirc
