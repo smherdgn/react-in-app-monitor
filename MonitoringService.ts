@@ -35,14 +35,13 @@ const MonitoringService = (() => {
   const generateId = (): string =>
     Date.now().toString(36) + Math.random().toString(36).substring(2);
 
-  const readStorage = <T>(key: StorageKey): T[] => {
-    if (typeof localStorage === "undefined") return [];
+  const readStorage = async <T>(key: StorageKey): Promise<T[]> => {
     try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : [];
+      const result = await readFromIndexedDB(key);
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error(
-        `MonitoringService: Error reading localStorage key "${key}":`,
+        `MonitoringService: Error reading IndexedDB key "${key}":`,
         error
       );
       return [];
