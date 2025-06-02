@@ -9,7 +9,6 @@ import {
   PageViewLog,
   ErrorLog,
   ComponentRenderLog,
-  CustomEventLog,
   ChartDataItem,
   TimeChartDataItem,
   ComponentEventType,
@@ -37,7 +36,6 @@ import {
   ListBulletIcon,
   ClockIcon,
   TagIcon,
-  CpuChipIcon,
   SimpleCpuChipIcon,
 } from "./icons";
 import { SimpleBarChart } from "./SimpleBarChart";
