@@ -1,7 +1,12 @@
-/// <reference types="node" />
+/// <reference types="react" />
+/// <reference types="react-dom" />
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { act as reactAct } from 'react';
+
+// Declare require for jest.requireActual
+declare var require: any;
 
 // Basic test runner and assertion library (VERY simplified)
 type TestFn = () => void | Promise<void>;
@@ -303,15 +308,15 @@ export const mockFn = <T extends (...args: any[]) => any = (...args: any[]) => a
     }
   };
 
-  mock.mock = {
+  const mockObject: MockFunction<T>['mock'] = {
     calls: [],
     instances: [], 
     results: [],
     mockClear: () => {
-      mock.mock.calls = [];
-      mock.mock.instances = [];
-      mock.mock.results = [];
-      mock.mock.lastCall = undefined;
+      mockObject.calls = [];
+      mockObject.instances = [];
+      mockObject.results = [];
+      mockObject.lastCall = undefined;
       onceImplementations.length = 0;
       onceReturnValues.length = 0;
       onceResolvedValues.length = 0;
@@ -350,6 +355,7 @@ export const mockFn = <T extends (...args: any[]) => any = (...args: any[]) => a
       return mock;
     },
   };
+  mock.mock = mockObject;
 
   return mock;
 };
@@ -402,12 +408,23 @@ export const mockIndexedDB = () => {
     _databases: {} as Record<string, any>,
     _currentVersion: 0,
   };
+  const mockDomStringList = {
+    length: 0,
+    item: (index: number): string | null => null,
+    contains: (str: string): boolean => false,
+    [Symbol.iterator]: function* () {
+      // Make it iterable if needed, for now, empty
+    }
+  };
+
   if (typeof window !== 'undefined') {
     Object.defineProperty(window, 'indexedDB', { value: mock, configurable: true, writable: true });
     if (!(window as any).IDBKeyRange) (window as any).IDBKeyRange = { only: mockFn(), lowerBound: mockFn(), upperBound: mockFn(), bound: mockFn() };
     if (!(window as any).IDBOpenDBRequest) (window as any).IDBOpenDBRequest = class IDBOpenDBRequest extends EventTarget {};
     if (!(window as any).IDBTransaction) (window as any).IDBTransaction = class IDBTransaction extends EventTarget {};
-    if (!(window as any).IDBDatabase) (window as any).IDBDatabase = class IDBDatabase extends EventTarget {}; 
+    if (!(window as any).IDBDatabase) (window as any).IDBDatabase = class IDBDatabase extends EventTarget {
+        objectStoreNames: DOMStringList = mockDomStringList as unknown as DOMStringList; // Assign mock
+    }; 
     if (!(window as any).IDBVersionChangeEvent) (window as any).IDBVersionChangeEvent = class IDBVersionChangeEvent extends Event {
       oldVersion: number;
       newVersion: number | null;
@@ -430,7 +447,9 @@ export const mockIndexedDB = () => {
     if (!(globalThis as any).IDBKeyRange) (globalThis as any).IDBKeyRange = { only: mockFn(), lowerBound: mockFn(), upperBound: mockFn(), bound: mockFn() };
     if (!(globalThis as any).IDBOpenDBRequest) (globalThis as any).IDBOpenDBRequest = class IDBOpenDBRequest extends EventTarget {};
     if (!(globalThis as any).IDBTransaction) (globalThis as any).IDBTransaction = class IDBTransaction extends EventTarget {};
-    if (!(globalThis as any).IDBDatabase) (globalThis as any).IDBDatabase = class IDBDatabase extends EventTarget {};
+    if (!(globalThis as any).IDBDatabase) (globalThis as any).IDBDatabase = class IDBDatabase extends EventTarget {
+        objectStoreNames: DOMStringList = mockDomStringList as unknown as DOMStringList; // Assign mock
+    };
     if (!(globalThis as any).IDBVersionChangeEvent) (globalThis as any).IDBVersionChangeEvent = class IDBVersionChangeEvent extends Event {
         constructor(type: string, eventInitDict?: IDBVersionChangeEventInit) { super(type); }
     };
@@ -443,6 +462,11 @@ export const mockIndexedDB = () => {
   }
   return mock;
 };
+
+// Define MockRequestInit to include destination
+interface MockRequestInit extends RequestInit {
+    destination?: RequestDestination;
+}
 
 export const mockWindow = () => {
   const mockConsole = {
@@ -472,27 +496,31 @@ export const mockWindow = () => {
     search: string;
     hash: string;
     origin: string;
+    protocol: string;
+    hostname: string;
+    port: string;
+    host: string;
     searchParams: URLSearchParams; // Will use the potentially mocked URLSearchParams
 
-    constructor(url: string, base?: string | URL) {
+    constructor(url: string, base?: string | URL | MockURLInternal) {
       let fullUrl = url;
       let baseOrigin = '';
       let basePath = '/';
 
       if (base) {
-        const baseStr = (typeof base === 'string') ? base : (base as URL).href;
-        const tempBaseUrl = new URLCtor(baseStr); // Use the correct URL constructor
+        const baseStr = (typeof base === 'string') ? base : (base as any).href;
+        const tempBaseUrl = new URLCtor(baseStr); 
         baseOrigin = tempBaseUrl.origin;
         basePath = tempBaseUrl.pathname;
         if (url.startsWith('/')) {
           fullUrl = baseOrigin + url;
-        } else if (!url.match(/^[a-zA-Z]+:\/\//)) { // if not absolute and not starting with /
+        } else if (!url.match(/^[a-zA-Z]+:\/\//)) { 
            fullUrl = baseOrigin + (basePath.endsWith('/') ? basePath : basePath + '/') + url;
         }
       } else if (!url.match(/^[a-zA-Z]+:\/\//) && url.startsWith('/') && typeof window !== 'undefined' && window.location) {
-         fullUrl = window.location.origin + url; // relative to current origin
+         fullUrl = window.location.origin + url; 
       } else if (!url.match(/^[a-zA-Z]+:\/\//) && typeof window !== 'undefined' && window.location) {
-         fullUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) + url; // relative to current path
+         fullUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) + url; 
       }
 
 
@@ -505,16 +533,25 @@ export const mockWindow = () => {
       
       const pathSegment = (queryIndex !== -1 ? searchUrl.substring(0, queryIndex) : searchUrl);
       
-      const originMatch = pathSegment.match(/^[a-zA-Z]+:\/\/[^/]+/);
-      this.origin = originMatch ? originMatch[0] : (baseOrigin || (typeof window !== 'undefined' && window.location ? window.location.origin : ''));
+      const originMatch = pathSegment.match(/^([a-zA-Z]+:)\/\/([^/?#]+)/);
+      this.protocol = originMatch ? originMatch[1] : (baseOrigin.split(':')[0] + ':' || (typeof window !== 'undefined' && window.location ? window.location.protocol : 'http:'));
+      const authority = originMatch ? originMatch[2] : (baseOrigin.split('//')[1] || (typeof window !== 'undefined' && window.location ? window.location.host : 'localhost'));
+      
+      this.origin = this.protocol + '//' + authority;
+
+      const authorityParts = authority.split(':');
+      this.hostname = authorityParts[0];
+      this.port = authorityParts[1] || '';
+      this.host = this.hostname + (this.port ? ':' + this.port : '');
       
       this.pathname = originMatch ? pathSegment.substring(this.origin.length) : pathSegment;
       if (!this.pathname.startsWith('/')) this.pathname = '/' + this.pathname;
 
       this.href = this.origin + this.pathname + this.search + this.hash;
-      this.searchParams = new URLSearchParamsCtor(this.search); // Use the correct URLSearchParams constructor
+      this.searchParams = new URLSearchParamsCtor(this.search); 
     }
     toString() { return this.href; }
+    toJSON() { return this.href; }
   }
 
   class MockURLSearchParamsInternal { 
@@ -530,7 +567,6 @@ export const mockWindow = () => {
           this.append(key, value);
         });
       } 
-      // Rudimentary support for other init types if needed for tests
     }
     append(name: string, value: string) {
       if (!this._params[name]) this._params[name] = [];
@@ -553,6 +589,27 @@ export const mockWindow = () => {
             }
         }
     }
+    [Symbol.iterator](): IterableIterator<[string, string]> {
+        const entries: [string, string][] = [];
+        for (const key in this._params) {
+            for (const value of this._params[key]) {
+                entries.push([key, value]);
+            }
+        }
+        return entries[Symbol.iterator]();
+    }
+    keys(): IterableIterator<string> {
+        return Object.keys(this._params)[Symbol.iterator]();
+    }
+    values(): IterableIterator<string> {
+        const allValues: string[] = [];
+        for (const key in this._params) {
+            allValues.push(...this._params[key]);
+        }
+        return allValues[Symbol.iterator]();
+    }
+    sort(): void { /* no-op for mock */ }
+
   }
   
   const URLCtor = (typeof globalThis !== 'undefined' && (globalThis as any).URL) ? (globalThis as any).URL : MockURLInternal;
@@ -568,7 +625,11 @@ export const mockWindow = () => {
       assign: mockFn(),
       replace: mockFn(),
       reload: mockFn(),
-      origin: 'http://localhost'
+      origin: 'http://localhost',
+      protocol: 'http:',
+      host: 'localhost',
+      hostname: 'localhost',
+      port: ''
     },
     history: {
       pushState: mockFn(),
@@ -625,7 +686,6 @@ export const mockWindow = () => {
       
       get body(): ReadableStream<Uint8Array> | null {
         if (this._bodyUsed) throw new TypeError("Body already used");
-        // Simplified: return a stream-like object if body exists
         if (this._body === null || this._body === undefined) return null;
         const encoder = new TextEncoder();
         const data = typeof this._body === 'string' ? this._body : JSON.stringify(this._body);
@@ -646,12 +706,13 @@ export const mockWindow = () => {
       async text() {
         if (this._bodyUsed) throw new TypeError("Body already used");
         this._bodyUsed = true;
+        if (this._body === null || this._body === undefined) return "";
         return typeof this._body === 'string' ? this._body : JSON.stringify(this._body);
       }
       async json() {
         if (this._bodyUsed) throw new TypeError("Body already used");
         this._bodyUsed = true;
-        const textBody = typeof this._body === 'string' ? this._body : JSON.stringify(this._body);
+        const textBody = await this.text();
         return JSON.parse(textBody);
       }
       clone() {
@@ -659,12 +720,34 @@ export const mockWindow = () => {
         (cloned as any)._type = this._type;
         (cloned as any)._url = this._url;
         (cloned as any)._redirected = this._redirected;
-        // Note: bodyUsed state is not cloned in real fetch, a cloned response has its own bodyUsed state.
-        return cloned as Response;
+        return cloned as unknown as Response;
       }
-      arrayBuffer(): Promise<ArrayBuffer> { throw new Error("Method not implemented."); }
-      blob(): Promise<Blob> { throw new Error("Method not implemented."); }
-      formData(): Promise<FormData> { throw new Error("Method not implemented."); }
+      async arrayBuffer(): Promise<ArrayBuffer> { 
+        if (this._bodyUsed) throw new TypeError("Body already used");
+        this._bodyUsed = true;
+        const text = await this.text();
+        return new TextEncoder().encode(text).buffer;
+       }
+      async blob(): Promise<Blob> {
+        if (this._bodyUsed) throw new TypeError("Body already used");
+        this._bodyUsed = true;
+        const text = await this.text();
+        return new Blob([text]);
+      }
+      async formData(): Promise<FormData> { 
+        if (this._bodyUsed) throw new TypeError("Body already used");
+        this._bodyUsed = true;
+        // This is a very simplified formData mock. Real implementation is complex.
+        const fd = new FormData();
+        const text = await this.text();
+        try {
+            const params = new URLSearchParamsCtor(text);
+            params.forEach((value, key) => fd.append(key, value));
+        } catch (e) {
+            console.warn("MockResponse.formData could not parse body as URLSearchParams", e);
+        }
+        return fd;
+      }
     },
     Request: class MockRequest {
       url: string;
@@ -681,25 +764,37 @@ export const mockWindow = () => {
       redirect?: RequestRedirect = 'follow';
       referrer?: string = 'about:client';
       referrerPolicy?: ReferrerPolicy = 'strict-origin-when-cross-origin';
+      destination: RequestDestination = 'document'; // Default value
       
-      constructor(input: RequestInfo | URL, init?: RequestInit) {
+      constructor(input: RequestInfo | URL | MockURLInternal, init?: MockRequestInit) {
         if (typeof input === 'string') {
           this.url = input;
-        } else if (input instanceof URLCtor) { // Use the potentially mocked URLCtor
-          this.url = input.href;
-        } else { // input is Request object (or assumed to be)
+        } else if ('href' in input && typeof (input as any).href === 'string') { // Duck typing for URL-like
+          this.url = (input as any).href;
+        } else { // input is Request
           const reqInput = input as Request;
           this.url = reqInput.url;
           this.method = reqInput.method;
-          this.headers = new Headers(reqInput.headers);
-          this._body = (reqInput as any)._body !== undefined ? (reqInput as any)._body : reqInput.body; // If it's already our mock
-          this._bodyUsed = (reqInput as any)._bodyUsed !== undefined ? (reqInput as any)._bodyUsed : reqInput.bodyUsed;
+          this.headers = new Headers(reqInput.headers); // Clone headers
+          this._body = (input as any)._body !== undefined ? (input as any)._body : (input as any).body;
+          this._bodyUsed = (input as any)._bodyUsed !== undefined ? (input as any)._bodyUsed : (input as any).bodyUsed;
           this.signal = reqInput.signal;
+          this.cache = reqInput.cache;
+          this.credentials = reqInput.credentials;
+          this.integrity = reqInput.integrity;
+          this.keepalive = reqInput.keepalive;
+          this.mode = reqInput.mode;
+          this.redirect = reqInput.redirect;
+          this.referrer = reqInput.referrer;
+          this.referrerPolicy = reqInput.referrerPolicy;
+          this.destination = (input as any).destination || 'document'; // Use destination from input if available
         }
+
         this.method = init?.method || this.method || 'GET';
         this.headers = new Headers(init?.headers || this.headers); 
         this._body = init?.body || this._body;
         this.signal = init?.signal || this.signal || new AbortController().signal;
+        if(init?.destination) this.destination = init.destination;
       }
       get bodyUsed() { return this._bodyUsed; }
       
@@ -707,7 +802,7 @@ export const mockWindow = () => {
          if (this._bodyUsed && this.method !== 'GET' && this.method !== 'HEAD') throw new TypeError("Body already used");
          if (this._body === null || this._body === undefined) return null;
          const encoder = new TextEncoder();
-         const data = typeof this._body === 'string' ? this._body : JSON.stringify(this._body);
+         const data = typeof this._body === 'string' ? this._body : JSON.stringify(this._body); // Simplified
          const uint8Array = encoder.encode(data);
          let readCalled = false;
          return new ReadableStream({
@@ -725,25 +820,56 @@ export const mockWindow = () => {
       async text() {
         if (this._bodyUsed && this.method !== 'GET' && this.method !== 'HEAD') throw new TypeError("Body already used");
         this._bodyUsed = true;
-        return typeof this._body === 'string' ? this._body : JSON.stringify(this._body);
+        if (this._body === null || this._body === undefined) return "";
+        return typeof this._body === 'string' ? this._body : JSON.stringify(this._body); // Simplified
       }
       clone() {
-        const newHeaders = new Headers(this.headers);
-        // Pass all relevant RequestInit properties
         const cloned = new MockRequest(this.url, { 
             method: this.method, 
-            headers: newHeaders, 
-            body: this._body, // The body itself is cloned if it's a stream, but here it's simplified
+            headers: new Headers(this.headers), 
+            body: this._body, 
             signal: this.signal,
-            // ... other properties
+            cache: this.cache,
+            credentials: this.credentials,
+            integrity: this.integrity,
+            keepalive: this.keepalive,
+            mode: this.mode,
+            redirect: this.redirect,
+            referrer: this.referrer,
+            referrerPolicy: this.referrerPolicy,
+            destination: this.destination, // Pass destination for clone
         });
-        return cloned as Request;
+        (cloned as any)._bodyUsed = this._bodyUsed; 
+        return cloned as unknown as Request;
       }
-      arrayBuffer(): Promise<ArrayBuffer> { throw new Error("Method not implemented."); }
-      blob(): Promise<Blob> { throw new Error("Method not implemented."); }
-      formData(): Promise<FormData> { throw new Error("Method not implemented."); }
-      json(): Promise<any> {
-        return this.text().then(JSON.parse);
+      async arrayBuffer(): Promise<ArrayBuffer> { 
+        if (this._bodyUsed && this.method !== 'GET' && this.method !== 'HEAD') throw new TypeError("Body already used");
+        this._bodyUsed = true;
+        const text = await this.text();
+        return new TextEncoder().encode(text).buffer;
+      }
+      async blob(): Promise<Blob> { 
+        if (this._bodyUsed && this.method !== 'GET' && this.method !== 'HEAD') throw new TypeError("Body already used");
+        this._bodyUsed = true;
+        const text = await this.text();
+        return new Blob([text]);
+      }
+      async formData(): Promise<FormData> {
+        if (this._bodyUsed && this.method !== 'GET' && this.method !== 'HEAD') throw new TypeError("Body already used");
+        this._bodyUsed = true;
+        const fd = new FormData();
+        const text = await this.text();
+         try {
+            const params = new URLSearchParamsCtor(text);
+            params.forEach((value, key) => fd.append(key, value));
+        } catch (e) {
+            console.warn("MockRequest.formData could not parse body as URLSearchParams", e);
+        }
+        return fd;
+       }
+      async json(): Promise<any> {
+        const textBody = await this.text(); // text() handles bodyUsed
+        return JSON.parse(textBody);
       }
     },
     URL: URLCtor,
@@ -764,12 +890,15 @@ export const mockWindow = () => {
         appendChild: mockFn(),
         removeChild: mockFn(),
         style: {}, 
+        classList: { add: mockFn(), remove: mockFn(), contains: mockFn(() => false), toggle: mockFn() } as any, // Add classList
       },
       documentElement: {
-        classList: { add: mockFn(), remove: mockFn(), contains: mockFn(() => false) }, 
+        classList: { add: mockFn(), remove: mockFn(), contains: mockFn(() => false), toggle: mockFn() } as any, 
         style: {}, 
         scrollHeight: 1024,
         clientHeight: 768,
+        scrollTop: 0, // Add scrollTop
+        scrollLeft: 0, // Add scrollLeft
       },
       getElementById: mockFn((id: string) => null),
       addEventListener: mockFn(),
@@ -822,6 +951,22 @@ export const jest = {
   ): MockFunction<T[M]> => {
     const original = object[method];
     if (typeof original !== 'function') {
+        // Allow spying on getters/setters if accessType is provided
+        if (accessType) {
+             const descriptor = Object.getOwnPropertyDescriptor(object, method);
+             if (!descriptor || (accessType === 'get' && !descriptor.get) || (accessType === 'set' && !descriptor.set)) {
+                throw new Error(`Cannot spyOn non-function property ${String(method)} without a corresponding getter/setter for access type '${accessType}'`);
+             }
+             // simplified: just create a mock function and overwrite, actual getter/setter behavior is lost for now
+             const spy = mockFn() as MockFunction<any>;
+             Object.defineProperty(object, method, {
+                get: accessType === 'get' ? spy : descriptor.get,
+                set: accessType === 'set' ? spy : descriptor.set,
+                configurable: true,
+             });
+             (spy.mock as any).mockRestore = () => { Object.defineProperty(object, method, descriptor); };
+             return spy as MockFunction<T[M]>;
+        }
         throw new Error(`Cannot spyOn non-function property ${String(method)}`);
     }
     const spy = mockFn((...args: Parameters<T[M]>) => original.apply(object, args)) as MockFunction<T[M]>;
@@ -873,10 +1018,14 @@ export const jest = {
      }
   },
   requireActual: (moduleName: string) => {
-    if (typeof require !== "undefined") {
+    if (typeof require === "function") {
       return require(moduleName);
     }
-    throw new Error("`require` is not defined. `requireActual` can only be used in a Node.js-like environment.");
+    // Guard against 'module' not being defined for other environments
+    if (typeof module !== 'undefined' && module.require) {
+        return module.require(moduleName);
+    }
+    throw new Error("`require` or `module.require` is not defined. `requireActual` can only be used in a Node.js-like environment or where `require` is polyfilled.");
   },
   mock: (moduleName: string, factory?: () => any, options?: any) => { /* No-op for now, tests need to mock manually or use spyOn */ }
 };
@@ -920,8 +1069,8 @@ export async function runTests() {
     }
   }
   console.log(`\nTest runner finished. Passed: ${passedTests}, Failed: ${failedTests}`);
-  if (failedTests > 0 && typeof process !== 'undefined' && process.exit) {
-    process.exitCode = 1; // Indicate failure for CI environments
+  if (failedTests > 0 && typeof process !== 'undefined' && (process as any).exit && (process as any).exitCode !== undefined) {
+    (process as any).exitCode = 1; // Indicate failure for CI environments
   }
 }
 
@@ -951,11 +1100,9 @@ export function renderHook<TResult, TProps = {}>(
     if (document.documentElement) {
         document.documentElement.appendChild(body);
     } else {
-        // This case is highly unlikely in any standard JS environment
-        // but provides a fallback if documentElement is also missing.
         const html = document.createElement('html');
         html.appendChild(body);
-        (document as any).appendChild(html); // Add html to document if it was entirely empty
+        (document as any).appendChild(html); 
     }
   }
   document.body.appendChild(container);
@@ -1006,4 +1153,15 @@ export function renderHook<TResult, TProps = {}>(
 // Initialize mocks immediately for Node.js environment for `run-tests.ts`
 if (typeof window === 'undefined' && typeof globalThis !== 'undefined') {
   mockWindow();
+}
+// Ensure require is available in global scope for Node.js environment if not already
+if (typeof globalThis !== 'undefined' && typeof (globalThis as any).require === 'undefined' && typeof require !== 'undefined') {
+    (globalThis as any).require = require;
+}
+if (typeof globalThis !== 'undefined' && typeof (globalThis as any).process === 'undefined' && typeof process !== 'undefined') {
+    (globalThis as any).process = process;
+}
+// Add module if it's missing in globalThis for Node.js
+if (typeof globalThis !== 'undefined' && typeof (globalThis as any).module === 'undefined' && typeof module !== 'undefined') {
+    (globalThis as any).module = module;
 }

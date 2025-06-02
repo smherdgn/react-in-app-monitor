@@ -23,15 +23,15 @@ async function main() {
     console.log("Test execution script finished.");
   } catch (error) {
     console.error("Error running test script:", error);
-    if (typeof process !== 'undefined' && process.exit) {
-        process.exitCode = 1; // Indicate failure
+    if (typeof process !== 'undefined' && (process as any).exit && (process as any).exitCode !== undefined) {
+        (process as any).exitCode = 1; // Indicate failure
     }
   }
 }
 
 main().catch(e => {
     console.error("Unhandled error in main test runner:", e);
-    if (typeof process !== 'undefined' && process.exit) {
-        process.exitCode = 1; // Indicate failure
+    if (typeof process !== 'undefined' && (process as any).exit && (process as any).exitCode !== undefined) {
+        (process as any).exitCode = 1; // Indicate failure
     }
 });
