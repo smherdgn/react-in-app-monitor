@@ -30,7 +30,7 @@ A fully self-contained, embeddable React in-app monitoring tool with zero extern
     *   Toggle monitoring on/off. Status is persisted in `localStorage`.
 *   **Theming**:
     *   Light/Dark mode toggle, persisted in `localStorage`.
-    *   Clean, modern, enterprise-grade design using Tailwind CSS (via CDN).
+    *   Clean, modern, enterprise-grade design using plain CSS variables.
 *   **Responsive Design**: Mobile-friendly layout using flex/grid.
 *   **Accessibility**: Uses ARIA attributes and provides keyboard navigation for interactive elements.
 
@@ -41,7 +41,7 @@ This tool is designed to be dropped into an existing React project.
 ### Prerequisites
 
 *   A React project (e.g., created with Vite, Create React App).
-*   Tailwind CSS is used for styling and is included via CDN in `index.html`. If your project has a global `index.html`, ensure it's compatible or adapt styling.
+*   Styling is self-contained within `index.html` using CSS variables and standard CSS. No external CSS libraries like Tailwind are required.
 
 ### Installation
 
@@ -57,7 +57,7 @@ This tool is designed to be dropped into an existing React project.
     │   │   ├── utils/
     │   │   ├── App.tsx           (Example wrapper, can be adapted)
     │   │   ├── constants.ts
-    │   │   ├── index.html        (Serves as a standalone example, or integrate its CDN links)
+    │   │   ├── index.html        (Serves as a standalone example, or integrate its styles/scripts)
     │   │   ├── index.tsx         (Main entry for standalone example)
     │   │   ├── metadata.json
     │   │   └── types.ts
@@ -150,7 +150,7 @@ When you integrate and run the `MonitoringDashboard`, you'll see a panel (stylab
     *   A line chart showing page navigation frequency over time.
     *   A bar chart showing average API call durations for the top 5 slowest endpoints.
 *   **Component Performance**: Lists of components that render most frequently or take the longest on average.
-*   **Page Insights**: A list of all unique pages visited. Clicking a page:
+*   **Page Insights**: A list of all unique pages visited (query parameters are stripped for grouping). Clicking a page:
     *   Filters the summary cards and charts to that page's context.
     *   Shows a list of individual "visits" to that page.
     *   Clicking a specific visit further filters all data to that single session.
@@ -159,7 +159,7 @@ When you integrate and run the `MonitoringDashboard`, you'll see a panel (stylab
     *   Each log item shows its type (with an icon), relevant data, and timestamp.
     *   Expandable sections for API calls (to see request/response bodies) and errors (to see stack traces).
 
-The entire UI is responsive and adapts to light/dark themes based on user selection.
+The entire UI is responsive and adapts to light/dark themes based on user selection. Styling is done with plain CSS variables defined in `index.html`.
 
 ## Technical Details
 
@@ -167,7 +167,7 @@ The entire UI is responsive and adapts to light/dark themes based on user select
 *   **Core Logic**: `services/MonitoringService.ts`
 *   **Data Storage**: `utils/indexedDB.ts` (uses IndexedDB directly, no wrapper library)
 *   **State Management**: React hooks (`useState`, `useEffect`, `useMemo`, `useCallback`) and a custom hook `hooks/useIndexedDB.ts`.
-*   **Styling**: Tailwind CSS (via CDN). Colors and theme are configurable in `index.html` and `MonitoringDashboard.tsx`.
+*   **Styling**: Plain CSS using variables defined in `index.html`. No external CSS libraries.
 
 ## Development & Customization
 
@@ -176,4 +176,3 @@ The entire UI is responsive and adapts to light/dark themes based on user select
 *   **Extending**: New log types or data visualizations can be added by extending `types.ts`, `MonitoringService.ts`, and `MonitoringDashboard.tsx`.
 
 This tool provides a solid foundation for in-app monitoring and can be extended further based on specific project needs.
-      

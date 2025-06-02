@@ -24,7 +24,9 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-surface-light dark:bg-surface-dark">
+    // The main div no longer needs dark mode specific classes here,
+    // as body tag in index.html handles the base background colors for light/dark.
+    <div style={{ minHeight: '100vh' }}>
       <MonitoringDashboard />
     </div>
   );

@@ -8,20 +8,22 @@ import { SimpleLineChart } from './SimpleLineChart';
 import { POLLING_INTERVAL, THEME_STORAGE_KEY, MONITORING_STATUS_KEY } from '../constants';
 import { getItem as getLocalStorageItem, setItem as setLocalStorageItem } from '../utils/localStorageHelper';
 
-const getIconForLogType = (type: LogEntryType, className: string = "w-5 h-5") => {
+const getIconForLogType = (type: LogEntryType, className: string = "icon-default") => {
+  // className will be icon-page-view, icon-api-call etc. which are defined in global CSS
+  const sizeStyle = { width: '1.25rem', height: '1.25rem' }; // Corresponds to w-5 h-5
   switch (type) {
     case LogEntryType.PAGE_VIEW:
-      return <EyeIcon className={`${className} text-blue-500`} />;
+      return <EyeIcon style={sizeStyle} className="icon-page-view" />;
     case LogEntryType.API_CALL:
-      return <CodeBracketIcon className={`${className} text-green-500`} />;
+      return <CodeBracketIcon style={sizeStyle} className="icon-api-call" />;
     case LogEntryType.COMPONENT_RENDER:
-      return <InfoIcon className={`${className} text-purple-500`} />;
+      return <InfoIcon style={sizeStyle} className="icon-component-render" />;
     case LogEntryType.ERROR:
-      return <AlertTriangleIcon className={`${className} text-red-500`} />;
+      return <AlertTriangleIcon style={sizeStyle} className="icon-error" />;
     case LogEntryType.CUSTOM_EVENT:
-      return <TagIcon className={`${className} text-yellow-500`} />;
+      return <TagIcon style={sizeStyle} className="icon-custom-event" />;
     default:
-      return <InfoIcon className={`${className} text-gray-500`} />;
+      return <InfoIcon style={sizeStyle} className="icon-default" />;
   }
 };
 
@@ -33,18 +35,18 @@ const LogItem: React.FC<{ log: LogEntry }> = ({ log }) => {
     switch (log.type) {
       case LogEntryType.PAGE_VIEW:
         const pvData = log.data as PageViewLog['data'];
-        return <p>Path: {pvData.path}{pvData.referrer && <span className="text-xs block">Referrer: {pvData.referrer}</span>}</p>;
+        return <p>Path: {pvData.path}{pvData.referrer && <span style={{ fontSize: '0.75rem', display: 'block' }}>Referrer: {pvData.referrer}</span>}</p>;
       case LogEntryType.API_CALL:
         const apiData = log.data as ApiCallLog['data'];
         return (
           <div>
             <p><strong>{apiData.method}</strong> {apiData.url}</p>
-            <p>Status: <span className={apiData.statusCode >= 400 ? 'text-red-500' : 'text-green-500'}>{apiData.statusCode}</span>, Duration: {apiData.duration.toFixed(2)}ms</p>
-            {apiData.error && <p className="text-red-500">Error: {apiData.error}</p>}
+            <p>Status: <span style={{ color: apiData.statusCode >= 400 ? 'var(--error-light)' : 'var(--success-light)' }} className={apiData.statusCode >= 400 ? 'dark-error-text' : 'dark-success-text'}>{apiData.statusCode}</span>, Duration: {apiData.duration.toFixed(2)}ms</p>
+            {apiData.error && <p style={{ color: 'var(--error-light)' }} className="dark-error-text">Error: {apiData.error}</p>}
             {expanded && (
-              <div className="mt-2 space-y-1 text-xs">
-                {apiData.requestBody && <p><strong>Request:</strong> <pre className="bg-slate-100 dark:bg-slate-700 p-1 rounded max-h-20 overflow-auto">{apiData.requestBody}</pre></p>}
-                {apiData.responseBody && <p><strong>Response:</strong> <pre className="bg-slate-100 dark:bg-slate-700 p-1 rounded max-h-20 overflow-auto">{apiData.responseBody}</pre></p>}
+              <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {apiData.requestBody && <p><strong>Request:</strong> <pre style={preStyle}>{apiData.requestBody}</pre></p>}
+                {apiData.responseBody && <p><strong>Response:</strong> <pre style={preStyle}>{apiData.responseBody}</pre></p>}
               </div>
             )}
           </div>
@@ -56,9 +58,9 @@ const LogItem: React.FC<{ log: LogEntry }> = ({ log }) => {
         const errData = log.data as ErrorLog['data'];
         return (
           <div>
-            <p className="text-red-500">Error: {errData.message}</p>
-            <p className="text-xs">Source: {errData.source}</p>
-            {expanded && errData.stack && <pre className="mt-2 text-xs bg-slate-100 dark:bg-slate-700 p-1 rounded max-h-32 overflow-auto">{errData.stack}</pre>}
+            <p style={{ color: 'var(--error-light)' }} className="dark-error-text">Error: {errData.message}</p>
+            <p style={{ fontSize: '0.75rem' }}>Source: {errData.source}</p>
+            {expanded && errData.stack && <pre style={{...preStyle, marginTop: '0.5rem'}}>{errData.stack}</pre>}
           </div>
         );
       case LogEntryType.CUSTOM_EVENT:
@@ -67,7 +69,7 @@ const LogItem: React.FC<{ log: LogEntry }> = ({ log }) => {
           <div>
             <p>Event: <strong>{ceData.eventName}</strong></p>
             {expanded && ceData.details && (
-                <pre className="mt-2 text-xs bg-slate-100 dark:bg-slate-700 p-1 rounded max-h-32 overflow-auto">
+                <pre style={{...preStyle, marginTop: '0.5rem'}}>
                     {JSON.stringify(ceData.details, null, 2)}
                 </pre>
             )}
@@ -82,28 +84,50 @@ const LogItem: React.FC<{ log: LogEntry }> = ({ log }) => {
                     (log.type === LogEntryType.ERROR && (log.data as ErrorLog['data']).stack) ||
                     (log.type === LogEntryType.CUSTOM_EVENT && (log.data as CustomEventLogData).details);
 
+  const listItemStyle: React.CSSProperties = {
+    padding: '0.75rem 1rem',
+    borderBottom: '1px solid var(--border-light)',
+    transition: 'background-color 0.15s ease-in-out'
+  };
+  const darkListItemStyle: React.CSSProperties = {
+    borderBottomColor: 'var(--border-dark)',
+  };
+  const preStyle: React.CSSProperties = {
+    backgroundColor: 'var(--surface-medium-light)',
+    padding: '0.25rem',
+    borderRadius: '0.25rem',
+    maxHeight: '5rem',
+    overflow: 'auto',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-all'
+  };
 
   return (
-    <li className="py-3 px-4 border-b border-border-light dark:border-border-dark last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-150">
-      <div className="flex items-start space-x-3">
-        <div className="flex-shrink-0 pt-1">
+    <li 
+        style={Object.assign({}, listItemStyle, document.documentElement.classList.contains('dark') ? darkListItemStyle : {})}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = document.documentElement.classList.contains('dark') ? 'rgba(55, 65, 81, 0.5)' : '#F9FAFB'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+        <div style={{ flexShrink: 0, paddingTop: '0.25rem' }}>
           {getIconForLogType(log.type)}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-text-primary-light dark:text-text-primary-dark">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-primary-light)' }} className="dark-text-primary">
             {renderLogData()}
           </div>
-          <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">
             {new Date(log.timestamp).toLocaleString()}
           </p>
         </div>
         {canExpand && (
           <button 
             onClick={() => setExpanded(!expanded)} 
-            className="p-1 text-text-secondary-light dark:text-text-secondary-dark hover:text-brand-primary-light dark:hover:text-brand-primary-dark rounded-md focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark"
+            className="btn-icon" // This class is defined in global styles
+            style={{ padding: '0.25rem', borderRadius: '0.375rem' }}
             aria-label={expanded ? "Collapse details" : "Expand details"}
-            >
-            {expanded ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}
+          >
+            {expanded ? <ChevronUpIcon style={{width: '1.25rem', height: '1.25rem'}} /> : <ChevronDownIcon style={{width: '1.25rem', height: '1.25rem'}} />}
           </button>
         )}
       </div>
@@ -162,11 +186,13 @@ export const MonitoringDashboard: React.FC = () => {
     a.href = url;
     let fileName = "monitoring_logs";
     if (selectedVisit) {
-        fileName += `_visit_${selectedPagePath?.replace(/\//g, '_')}_${new Date(selectedVisit.startTime).toISOString()}`;
+        const safePagePath = selectedPagePath ? selectedPagePath.replace(/[^a-zA-Z0-9_.-]/g, '_') : 'unknownpage';
+        fileName += `_visit_${safePagePath}_${new Date(selectedVisit.startTime).toISOString().replace(/:/g, '-')}`;
     } else if (selectedPagePath) {
-        fileName += `_page_${selectedPagePath.replace(/\//g, '_')}`;
+        const safePagePath = selectedPagePath.replace(/[^a-zA-Z0-9_.-]/g, '_');
+        fileName += `_page_${safePagePath}`;
     }
-    fileName += `_${new Date().toISOString()}.json`;
+    fileName += `_${new Date().toISOString().replace(/:/g, '-')}.json`;
     a.download = fileName;
     document.body.appendChild(a);
     a.click();
@@ -188,9 +214,6 @@ export const MonitoringDashboard: React.FC = () => {
     const mountTime = performance.now();
     MonitoringService.logComponentRender({ componentName: 'MonitoringDashboard', eventType: ComponentEventType.MOUNT, duration: 0 });
     
-    // Example of logging a custom event
-    // MonitoringService.logCustomEvent("DashboardMounted", { userAgent: navigator.userAgent });
-
     return () => {
       window.removeEventListener('monitoring_new_log', handleNewLog);
       clearInterval(intervalId);
@@ -198,6 +221,17 @@ export const MonitoringDashboard: React.FC = () => {
     };
   }, [fetchLogs]);
 
+  const stripQueryParams = (fullPath: string): string => {
+    try {
+      // Use a dummy base if the path is relative, URL needs a base.
+      const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+      return new URL(fullPath, base).pathname;
+    } catch (e) {
+      // Fallback for invalid paths or if URL constructor fails
+      const qIndex = fullPath.indexOf('?');
+      return qIndex !== -1 ? fullPath.substring(0, qIndex) : fullPath;
+    }
+  };
 
   const pageInsights = useMemo((): PageInsight[] => {
     if (!logs.length) return [];
@@ -208,6 +242,7 @@ export const MonitoringDashboard: React.FC = () => {
 
     for (let i = 0; i < pageViewEvents.length; i++) {
       const currentPv = pageViewEvents[i];
+      const pathWithoutParams = stripQueryParams(currentPv.data.path); // Strip params for grouping
       const lastLogTimestamp = sortedLogs[sortedLogs.length - 1].timestamp;
       
       const startTime = currentPv.timestamp;
@@ -223,7 +258,6 @@ export const MonitoringDashboard: React.FC = () => {
          visitLogs.push(...remainingLogs.filter(rl => !visitLogs.find(vl => vl.id === rl.id)));
       }
 
-
       const pageVisit: PageVisit = {
         startTime,
         endTime: i === pageViewEvents.length - 1 ? undefined : endTime, 
@@ -231,10 +265,10 @@ export const MonitoringDashboard: React.FC = () => {
         logIds: visitLogs.map(l => l.id)
       };
       
-      let pageInsight = insightsMap.get(currentPv.data.path);
+      let pageInsight = insightsMap.get(pathWithoutParams); // Use stripped path for map key
       if (!pageInsight) {
         pageInsight = {
-          path: currentPv.data.path,
+          path: pathWithoutParams, // Store stripped path
           visits: [],
           totalVisits: 0,
           totalApiCallCount: 0,
@@ -259,7 +293,7 @@ export const MonitoringDashboard: React.FC = () => {
       pageInsight.totalErrorCount = allLogsForThisPath.filter(l => l.type === LogEntryType.ERROR).length;
       pageInsight.totalComponentRenderCount = allLogsForThisPath.filter(l => l.type === LogEntryType.COMPONENT_RENDER).length;
 
-      insightsMap.set(currentPv.data.path, pageInsight);
+      insightsMap.set(pathWithoutParams, pageInsight);
     }
 
     insightsMap.forEach(insight => {
@@ -277,7 +311,7 @@ export const MonitoringDashboard: React.FC = () => {
         const relevantLogIds = new Set<string>(selectedVisit.logIds);
         return logs.filter(log => relevantLogIds.has(log.id));
     }
-    if (selectedPagePath) {
+    if (selectedPagePath) { // selectedPagePath is already stripped
         const insight = pageInsights.find(p => p.path === selectedPagePath);
         if (insight) {
             const relevantLogIds = new Set<string>();
@@ -301,12 +335,11 @@ export const MonitoringDashboard: React.FC = () => {
       displayLogs = displayLogs.filter(log => {
         const typeMatch = log.type.toLowerCase().replace(/_/g, ' ').includes(lowerSearchTerm);
         if (typeMatch) return true;
-
-        // Stringify data for a general search, or specific fields
+        
         let dataString = '';
         try {
           dataString = JSON.stringify(log.data).toLowerCase();
-        } catch (e) { /* ignore serialization errors for search */ }
+        } catch (e) { /* ignore */ }
         if (dataString.includes(lowerSearchTerm)) return true;
         
         return false;
@@ -353,7 +386,7 @@ export const MonitoringDashboard: React.FC = () => {
     const sourceLogs = getSourceLogsForStats();
     const pageViews = sourceLogs.filter(log => log.type === LogEntryType.PAGE_VIEW) as PageViewLog[];
     
-    const intervalMillis = 60 * 1000 * 5; // 5 minute intervals
+    const intervalMillis = 60 * 1000 * 5; 
     const navigationCounts: { [key: number]: number } = {};
     
     pageViews.forEach(pv => {
@@ -383,7 +416,7 @@ export const MonitoringDashboard: React.FC = () => {
         name,
         count: data.count,
         totalDuration: data.totalDuration,
-        avgDuration: data.totalDuration / data.count,
+        avgDuration: data.count > 0 ? data.totalDuration / data.count : 0,
     }));
 
     return {
@@ -393,13 +426,18 @@ export const MonitoringDashboard: React.FC = () => {
   }, [getSourceLogsForStats]);
 
   const renderStatCard = (title: string, value: number | string, icon: React.ReactNode) => (
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow flex items-center space-x-3">
-      <div className="p-2 bg-brand-primary-light/20 dark:bg-brand-primary-dark/20 rounded-full text-brand-primary-light dark:text-brand-primary-dark">
+    <div className="card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div style={{ 
+          padding: '0.5rem', 
+          borderRadius: '9999px', /* full */
+          backgroundColor: document.documentElement.classList.contains('dark') ? 'rgba(96, 165, 250, 0.2)' : 'rgba(59, 130, 246, 0.2)', 
+          color: document.documentElement.classList.contains('dark') ? 'var(--brand-primary-dark)' : 'var(--brand-primary-light)'
+      }}>
         {icon}
       </div>
       <div>
-        <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">{title}</p>
-        <p className="text-2xl font-semibold text-text-primary-light dark:text-text-primary-dark">{value}</p>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">{title}</p>
+        <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary-light)' }} className="dark-text-primary">{value}</p>
       </div>
     </div>
   );
@@ -429,131 +467,190 @@ export const MonitoringDashboard: React.FC = () => {
         setSelectedVisit(visit);
      }
   };
+
+  // Inline styles for complex elements
+  const headerStyle: React.CSSProperties = { marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' };
+  const headerTitleStyle: React.CSSProperties = { fontSize: '1.875rem', fontWeight: 700, color: 'var(--brand-secondary-light)'};
+  const darkHeaderTitleStyle: React.CSSProperties = { color: 'var(--brand-secondary-dark)'};
+  const controlsContainerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.5rem' };
+  const iconStyle = {width: '1.5rem', height: '1.5rem'}; // for header buttons
+
+  const sectionTitleStyle: React.CSSProperties = { fontSize: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center' };
+  const sectionIconStyle = { width: '1.5rem', height: '1.5rem', marginRight: '0.5rem', color: 'var(--brand-primary-light)' };
+  const darkSectionIconStyle = { color: 'var(--brand-primary-dark)' };
+
+  const gridStyle: React.CSSProperties = { display: 'grid', gap: '1rem' };
+  // Responsive grid columns (example)
+  const twoColGridStyle: React.CSSProperties = { ...gridStyle, gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' };
+  if (typeof window !== 'undefined' && window.innerWidth >= 1024) { // lg breakpoint
+      twoColGridStyle.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+  }
+  const summaryGridStyle: React.CSSProperties = { ...gridStyle, gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' };
+  if (typeof window !== 'undefined' && window.innerWidth >= 640) { // sm breakpoint
+      summaryGridStyle.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+  }
+   if (typeof window !== 'undefined' && window.innerWidth >= 1024) { // lg breakpoint
+      summaryGridStyle.gridTemplateColumns = 'repeat(5, minmax(0, 1fr))';
+  }
   
+  const ulStyle: React.CSSProperties = { listStyle: 'none', padding: 0, margin: 0, borderTop: '1px solid var(--border-light)'};
+  const darkUlStyle: React.CSSProperties = { borderTopColor: 'var(--border-dark)' };
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark">
-      <header className="mb-6 flex flex-wrap justify-between items-center gap-4">
-        <h1 className="text-3xl font-bold text-brand-secondary-light dark:text-brand-secondary-dark">Monitoring Dashboard</h1>
-        <div className="flex items-center space-x-2">
-          <button onClick={toggleMonitoring} className="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark" title={isMonitoringActive ? "Pause Monitoring" : "Start Monitoring"}>
-            {isMonitoringActive ? <PauseIcon className="w-6 h-6 text-red-500" /> : <PlayIcon className="w-6 h-6 text-green-500" />}
+    <div style={{ padding: '1rem', minHeight: '100vh' }} className="dashboard-container">
+      {/* Dynamic CSS for dark mode text etc. */}
+      <style>{`
+        html.dark .dark-text-primary { color: var(--text-primary-dark); }
+        html.dark .dark-text-secondary { color: var(--text-secondary-dark); }
+        html.dark .dark-border { border-color: var(--border-dark); }
+        html.dark .dark-bg-surface-medium { background-color: var(--surface-medium-dark); }
+        html.dark .dark-error-text { color: var(--error-dark) !important; }
+        html.dark .dark-success-text { color: var(--success-dark) !important; }
+        html.dark .dark-brand-primary-text { color: var(--brand-primary-dark) !important; }
+
+        .dashboard-container { padding: clamp(1rem, 5vw, 2rem); }
+        .page-insight-item:hover { background-color: ${currentTheme === 'dark' ? 'rgba(55, 65, 81, 0.7)' : '#f0f4f8'}; }
+        .page-insight-item.selected { 
+            background-color: ${currentTheme === 'dark' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(59, 130, 246, 0.1)'};
+            border-left: 4px solid ${currentTheme === 'dark' ? 'var(--brand-primary-dark)' : 'var(--brand-primary-light)'};
+        }
+        .page-insight-item.selected .page-insight-path {
+             color: ${currentTheme === 'dark' ? 'var(--brand-primary-dark)' : 'var(--brand-primary-light)'};
+             font-weight: 600;
+        }
+        .log-list-container { max-height: 600px; overflow-y: auto; }
+        .page-insights-list { max-height: 300px; overflow-y: auto; }
+         @media (min-width: 768px) { /* md */
+            .dashboard-container { padding: 1.5rem; }
+            .comp-perf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; /* for border effect */ background-color: var(--border-light); }
+            html.dark .comp-perf-grid { background-color: var(--border-dark); }
+            .comp-perf-grid > div { background-color: var(--surface-elevated-light); padding: 1rem;}
+            html.dark .comp-perf-grid > div { background-color: var(--surface-elevated-dark); }
+         }
+         @media (min-width: 1024px) { /* lg */
+            .dashboard-container { padding: 2rem; }
+         }
+      `}</style>
+      <header style={headerStyle}>
+        <h1 style={Object.assign({}, headerTitleStyle, currentTheme === 'dark' ? darkHeaderTitleStyle : {})}>Monitoring Dashboard</h1>
+        <div style={controlsContainerStyle}>
+          <button onClick={toggleMonitoring} className="btn-icon" title={isMonitoringActive ? "Pause Monitoring" : "Start Monitoring"}>
+            {isMonitoringActive ? <PauseIcon style={{...iconStyle, color: 'var(--error-light)'}} className="dark-error-text" /> : <PlayIcon style={{...iconStyle, color: 'var(--success-light)'}} className="dark-success-text" />}
           </button>
-          <button onClick={toggleTheme} className="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark" title={`Switch to ${currentTheme === 'light' ? 'Dark' : 'Light'} Mode`}>
-            {currentTheme === 'light' ? <MoonIcon className="w-6 h-6" /> : <SunIcon className="w-6 h-6" />}
+          <button onClick={toggleTheme} className="btn-icon" title={`Switch to ${currentTheme === 'light' ? 'Dark' : 'Light'} Mode`}>
+            {currentTheme === 'light' ? <MoonIcon style={iconStyle} /> : <SunIcon style={iconStyle} />}
           </button>
-          <button onClick={handleClearLogs} className="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark" title="Clear All Logs">
-            <TrashIcon className="w-6 h-6" />
+          <button onClick={handleClearLogs} className="btn-icon" title="Clear All Logs">
+            <TrashIcon style={iconStyle} />
           </button>
-          <button onClick={downloadLogs} className="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark" title="Download Logs">
-            <DownloadIcon className="w-6 h-6" />
+          <button onClick={downloadLogs} className="btn-icon" title="Download Logs">
+            <DownloadIcon style={iconStyle} />
           </button>
         </div>
       </header>
 
-      {dbError && <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 rounded-md">{dbError}</div>}
+      {dbError && <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: currentTheme === 'dark' ? 'rgba(239,68,68,0.2)' : '#FECACA', border: `1px solid ${currentTheme === 'dark' ? 'var(--error-dark)' : 'var(--error-light)'}`, color: currentTheme === 'dark' ? 'var(--error-dark)' : 'var(--error-light)', borderRadius: '0.375rem' }}>{dbError}</div>}
       
-      <div className="mb-6">
+      <div style={{ marginBottom: '1.5rem' }}>
         {(selectedPagePath || selectedVisit) && (
-          <div className="mb-2 text-sm text-text-secondary-light dark:text-text-secondary-dark flex items-center">
-            <span>Showing stats for: <strong className="text-text-primary-light dark:text-text-primary-dark">
+          <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">
+            <span>Showing stats for: <strong style={{ color: 'var(--text-primary-light)'}} className="dark-text-primary">
                 {selectedVisit ? `${selectedPagePath} (Visit at ${new Date(selectedVisit.startTime).toLocaleTimeString()})` : selectedPagePath}
             </strong></span>
           </div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {renderStatCard("Page Views", summaryStats.pageViews, <EyeIcon className="w-5 h-5"/>)}
-          {renderStatCard("API Calls", summaryStats.apiCalls, <CodeBracketIcon className="w-5 h-5"/>)}
-          {renderStatCard("Errors", summaryStats.errors, <AlertTriangleIcon className="w-5 h-5"/>)}
-          {renderStatCard("Components", summaryStats.componentRenders, <InfoIcon className="w-5 h-5"/>)}
-          {renderStatCard("Custom Events", summaryStats.customEvents, <TagIcon className="w-5 h-5"/>)}
+        <div style={summaryGridStyle}>
+          {renderStatCard("Page Views", summaryStats.pageViews, <EyeIcon style={{width: '1.25rem', height: '1.25rem'}}/>)}
+          {renderStatCard("API Calls", summaryStats.apiCalls, <CodeBracketIcon style={{width: '1.25rem', height: '1.25rem'}}/>)}
+          {renderStatCard("Errors", summaryStats.errors, <AlertTriangleIcon style={{width: '1.25rem', height: '1.25rem'}}/>)}
+          {renderStatCard("Components", summaryStats.componentRenders, <InfoIcon style={{width: '1.25rem', height: '1.25rem'}}/>)}
+          {renderStatCard("Custom Events", summaryStats.customEvents, <TagIcon style={{width: '1.25rem', height: '1.25rem'}}/>)}
         </div>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <SimpleLineChart data={pageNavigationData} title={`Page Navigation ${selectedVisit ? `during visit` : selectedPagePath ? `on ${selectedPagePath.substring(0,15)}...` : 'Over Time'}`} color={currentTheme === 'dark' ? '#60A5FA' : '#3B82F6'} />
-        <SimpleBarChart data={apiDurationData} title={`Avg. API Duration ${selectedVisit ? `during visit` : selectedPagePath ? `on ${selectedPagePath.substring(0,15)}...` : ''} (Top 5)`} color={currentTheme === 'dark' ? '#60A5FA' : '#3B82F6'} />
+      <div style={Object.assign({}, twoColGridStyle, { marginBottom: '1.5rem' })}>
+        <SimpleLineChart data={pageNavigationData} title={`Page Navigation ${selectedVisit ? `during visit` : selectedPagePath ? `on ${selectedPagePath.substring(0,15)}...` : 'Over Time'}`} color={currentTheme === 'dark' ? 'var(--brand-primary-dark)' : 'var(--brand-primary-light)'} />
+        <SimpleBarChart data={apiDurationData} title={`Avg. API Duration ${selectedVisit ? `during visit` : selectedPagePath ? `on ${selectedPagePath.substring(0,15)}...` : ''} (Top 5)`} color={currentTheme === 'dark' ? 'var(--brand-primary-dark)' : 'var(--brand-primary-light)'} />
       </div>
 
-      {/* Component Performance Section */}
-      <div className="mb-6 bg-white dark:bg-slate-800 rounded-lg shadow">
-        <div className="p-4 border-b border-border-light dark:border-border-dark">
-            <h2 className="text-xl font-semibold flex items-center">
-                <SimpleCpuChipIcon className="w-6 h-6 mr-2 text-brand-primary-light dark:text-brand-primary-dark"/>
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ padding: '1rem', borderBottom: `1px solid ${currentTheme === 'dark' ? 'var(--border-dark)' : 'var(--border-light)'}` }}>
+            <h2 style={sectionTitleStyle}>
+                <SimpleCpuChipIcon style={Object.assign({}, sectionIconStyle, currentTheme === 'dark' ? darkSectionIconStyle : {})} />
                 Component Performance Highlights
             </h2>
         </div>
         {isLoading && componentPerformance.byFrequency.length === 0 && componentPerformance.byAvgDuration.length === 0 ? (
-             <p className="p-4 text-center text-text-secondary-light dark:text-text-secondary-dark">Loading component performance...</p>
+             <p style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">Loading component performance...</p>
         ) : componentPerformance.byFrequency.length === 0 && componentPerformance.byAvgDuration.length === 0 ? (
-            <p className="p-4 text-center text-text-secondary-light dark:text-text-secondary-dark">No component render data available {selectedPagePath || selectedVisit ? 'for this selection' : ''}.</p>
+            <p style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">No component render data available {selectedPagePath || selectedVisit ? 'for this selection' : ''}.</p>
         ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 md:gap-px bg-border-light dark:bg-border-dark">
-            <div className="bg-white dark:bg-slate-800 p-4">
-                <h3 className="text-md font-semibold mb-2">Top 5 by Render Count</h3>
+        <div className="comp-perf-grid">
+            <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>Top 5 by Render Count</h3>
                 {componentPerformance.byFrequency.length > 0 ? (
-                    <ul className="space-y-1 text-sm">
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         {componentPerformance.byFrequency.map(c => (
-                            <li key={c.name} className="flex justify-between">
-                                <span className="truncate pr-2" title={c.name}>{c.name}</span>
-                                <span className="font-medium">{c.count} renders</span>
+                            <li key={c.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '0.5rem' }} title={c.name}>{c.name}</span>
+                                <span style={{ fontWeight: 500 }}>{c.count} renders</span>
                             </li>
                         ))}
                     </ul>
-                ) : <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">None</p>}
+                ) : <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">None</p>}
             </div>
-            <div className="bg-white dark:bg-slate-800 p-4">
-                <h3 className="text-md font-semibold mb-2">Top 5 by Avg. Duration</h3>
+            <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>Top 5 by Avg. Duration</h3>
                  {componentPerformance.byAvgDuration.length > 0 ? (
-                    <ul className="space-y-1 text-sm">
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         {componentPerformance.byAvgDuration.map(c => (
-                            <li key={c.name} className="flex justify-between">
-                                <span className="truncate pr-2" title={c.name}>{c.name}</span>
-                                <span className="font-medium">{formatDuration(c.avgDuration)}</span>
+                            <li key={c.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '0.5rem' }} title={c.name}>{c.name}</span>
+                                <span style={{ fontWeight: 500 }}>{formatDuration(c.avgDuration)}</span>
                             </li>
                         ))}
                     </ul>
-                ) : <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">None</p>}
+                ) : <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">None</p>}
             </div>
         </div>
         )}
       </div>
 
-
-      {/* Page Insights List */}
-      <div className="mb-6 bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
-        <div className="p-4 border-b border-border-light dark:border-border-dark">
-          <h2 className="text-xl font-semibold flex items-center">
-            <ListBulletIcon className="w-6 h-6 mr-2 text-brand-primary-light dark:text-brand-primary-dark"/>
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ padding: '1rem', borderBottom: `1px solid ${currentTheme === 'dark' ? 'var(--border-dark)' : 'var(--border-light)'}` }}>
+          <h2 style={sectionTitleStyle}>
+            <ListBulletIcon style={Object.assign({}, sectionIconStyle, currentTheme === 'dark' ? darkSectionIconStyle : {})} />
             Page Insights
           </h2>
         </div>
         {isLoading && pageInsights.length === 0 ? (
-          <p className="p-6 text-center text-text-secondary-light dark:text-text-secondary-dark">Loading page insights...</p>
+          <p style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary-light)'}} className="dark-text-secondary">Loading page insights...</p>
         ) : pageInsights.length === 0 ? (
-          <p className="p-6 text-center text-text-secondary-light dark:text-text-secondary-dark">No page view data yet to generate insights.</p>
+          <p style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary-light)'}} className="dark-text-secondary">No page view data yet to generate insights.</p>
         ) : (
-          <ul className="divide-y divide-border-light dark:divide-border-dark max-h-[300px] overflow-y-auto">
+          <ul className="page-insights-list" style={Object.assign({}, ulStyle, currentTheme === 'dark' ? darkUlStyle : {})}>
             {pageInsights.map(insight => (
               <li 
                 key={insight.path} 
-                className={`p-4 hover:bg-slate-100 dark:hover:bg-slate-700/70 transition-colors duration-150 cursor-pointer ${selectedPagePath === insight.path ? 'bg-brand-primary-light/10 dark:bg-brand-primary-dark/10 border-l-4 border-brand-primary-light dark:border-brand-primary-dark' : ''}`}
+                className={`page-insight-item ${selectedPagePath === insight.path ? 'selected' : ''}`}
+                style={{ padding: '1rem', transition: 'background-color 0.15s ease-in-out', cursor: 'pointer' }}
                 onClick={() => handlePageInsightClick(insight.path)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && handlePageInsightClick(insight.path)}
               >
-                <div className="flex justify-between items-center">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <span className={`text-lg font-medium ${selectedPagePath === insight.path ? 'text-brand-primary-light dark:text-brand-primary-dark font-semibold' : 'text-text-primary-light dark:text-text-primary-dark'}`}>
+                    <span className="page-insight-path" style={{ fontSize: '1.125rem', fontWeight: 500, color: 'var(--text-primary-light)' }} >
                       {insight.path}
                     </span>
-                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">
                       Visits: {insight.totalVisits}. Last: {new Date(insight.lastViewedAt).toLocaleTimeString()}. Avg Duration: {formatDuration(insight.avgDuration)}
                     </p>
                   </div>
-                  <div className="text-right text-xs space-y-0.5 min-w-[80px]">
+                  <div style={{ textAlign: 'right', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: '80px' }}>
                      <p>APIs: {insight.totalApiCallCount}</p>
-                     <p className={insight.totalErrorCount > 0 ? 'text-red-500 font-medium' : ''}>Errors: {insight.totalErrorCount}</p>
+                     <p style={insight.totalErrorCount > 0 ? {color: 'var(--error-light)', fontWeight: 500} : {}} className={insight.totalErrorCount > 0 ? 'dark-error-text' : ''}>Errors: {insight.totalErrorCount}</p>
                      <p>Renders: {insight.totalComponentRenderCount}</p>
                   </div>
                 </div>
@@ -564,36 +661,37 @@ export const MonitoringDashboard: React.FC = () => {
       </div>
       
       {selectedPagePath && pageInsights.find(p => p.path === selectedPagePath) && (
-        <div className="mb-6 bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
-          <div className="p-4 border-b border-border-light dark:border-border-dark">
-            <h2 className="text-xl font-semibold flex items-center">
-              <ClockIcon className="w-6 h-6 mr-2 text-brand-primary-light dark:text-brand-primary-dark"/>
+        <div className="card" style={{ marginBottom: '1.5rem' }}>
+          <div style={{ padding: '1rem', borderBottom: `1px solid ${currentTheme === 'dark' ? 'var(--border-dark)' : 'var(--border-light)'}` }}>
+            <h2 style={sectionTitleStyle}>
+              <ClockIcon style={Object.assign({}, sectionIconStyle, currentTheme === 'dark' ? darkSectionIconStyle : {})} />
               Visits for {selectedPagePath}
             </h2>
           </div>
-          <ul className="divide-y divide-border-light dark:divide-border-dark max-h-[300px] overflow-y-auto">
-            {(pageInsights.find(p => p.path === selectedPagePath)?.visits || []).sort((a,b) => b.startTime - a.startTime).map((visit, index) => {
+          <ul className="page-insights-list" style={Object.assign({}, ulStyle, currentTheme === 'dark' ? darkUlStyle : {})}>
+            {(pageInsights.find(p => p.path === selectedPagePath)?.visits || []).sort((a,b) => b.startTime - a.startTime).map((visit) => {
               const visitApiCount = logs.filter(l => visit.logIds.includes(l.id) && l.type === LogEntryType.API_CALL).length;
               const visitErrorCount = logs.filter(l => visit.logIds.includes(l.id) && l.type === LogEntryType.ERROR).length;
               return (
                 <li 
                     key={visit.startTime}
-                    className={`p-4 hover:bg-slate-100 dark:hover:bg-slate-700/70 transition-colors duration-150 cursor-pointer ${selectedVisit?.startTime === visit.startTime ? 'bg-brand-primary-light/10 dark:bg-brand-primary-dark/10 border-l-4 border-brand-primary-light dark:border-brand-primary-dark' : ''}`}
+                    className={`page-insight-item ${selectedVisit?.startTime === visit.startTime ? 'selected' : ''}`}
+                    style={{ padding: '1rem', transition: 'background-color 0.15s ease-in-out', cursor: 'pointer' }}
                     onClick={() => handlePageVisitClick(visit)}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => e.key === 'Enter' && handlePageVisitClick(visit)}
                 >
-                    <div className="flex justify-between items-center">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <span className={`font-medium ${selectedVisit?.startTime === visit.startTime ? 'text-brand-primary-light dark:text-brand-primary-dark font-semibold' : 'text-text-primary-light dark:text-text-primary-dark'}`}>
+                            <span className="page-insight-path" style={{ fontWeight: 500, color: 'var(--text-primary-light)' }}>
                                 Visit at {new Date(visit.startTime).toLocaleTimeString()}
                             </span>
-                            <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Duration: {formatDuration(visit.duration)}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)' }} className="dark-text-secondary">Duration: {formatDuration(visit.duration)}</p>
                         </div>
-                        <div className="text-right text-xs space-y-0.5 min-w-[70px]">
+                        <div style={{ textAlign: 'right', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: '70px' }}>
                             <p>APIs: {visitApiCount}</p>
-                            <p className={visitErrorCount > 0 ? 'text-red-500 font-medium' : ''}>Errors: {visitErrorCount}</p>
+                            <p style={visitErrorCount > 0 ? {color: 'var(--error-light)', fontWeight: 500} : {}} className={visitErrorCount > 0 ? 'dark-error-text' : ''}>Errors: {visitErrorCount}</p>
                         </div>
                     </div>
                 </li>
@@ -602,39 +700,42 @@ export const MonitoringDashboard: React.FC = () => {
         </div>
       )}
       
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
-        <div className="p-4 border-b border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <div className="flex items-center flex-grow">
+      <div className="card">
+        <div style={{ padding: '1rem', borderBottom: `1px solid ${currentTheme === 'dark' ? 'var(--border-dark)' : 'var(--border-light)'}`, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1, flexWrap: 'wrap', gap: '0.75rem' }}>
               {(selectedPagePath || selectedVisit) && (
                 <button 
                   onClick={handleBackToAll}
-                  className="mr-3 p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark"
+                  className="btn-icon"
+                  style={{ marginRight: '0.75rem', padding: '0.375rem' }}
                   title="Back to all logs"
                   aria-label="Back to all logs"
                 >
-                  <ArrowLeftIcon className="w-5 h-5 text-brand-primary-light dark:text-brand-primary-dark" />
+                  <ArrowLeftIcon style={Object.assign({width:'1.25rem', height:'1.25rem'}, sectionIconStyle, currentTheme === 'dark' ? darkSectionIconStyle : {})} />
                 </button>
               )}
-              <h2 className="text-xl font-semibold">
+              <h2 style={sectionTitleStyle}>
                 {selectedVisit ? `Logs for visit to ${selectedPagePath?.substring(0,20)}... at ${new Date(selectedVisit.startTime).toLocaleTimeString()}` 
                  : selectedPagePath ? `Logs for ${selectedPagePath.substring(0,30)}${selectedPagePath.length > 30 ? '...' : ''}` 
                  : 'Activity Logs'} 
                 &nbsp;({filteredLogs.length})
               </h2>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
               <input 
                 type="text"
                 placeholder="Search logs..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-700 border border-border-light dark:border-border-dark rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark flex-grow sm:flex-grow-0"
+                className="form-input"
+                style={{ flexGrow: 1, minWidth: '150px' }}
                 aria-label="Search logs"
               />
               <select 
                   value={filterType} 
                   onChange={(e) => setFilterType(e.target.value as LogEntryType | 'ALL')}
-                  className="bg-slate-50 dark:bg-slate-700 border border-border-light dark:border-border-dark rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary-light dark:focus:ring-brand-primary-dark"
+                  className="form-select"
+                  style={{ minWidth: '120px' }}
                   aria-label="Filter logs by type"
               >
                   <option value="ALL">All Types</option>
@@ -645,9 +746,9 @@ export const MonitoringDashboard: React.FC = () => {
             </div>
         </div>
         {isLoading && logs.length === 0 && !dbError ? ( 
-          <p className="p-6 text-center text-text-secondary-light dark:text-text-secondary-dark">Loading logs...</p>
+          <p style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary-light)'}} className="dark-text-secondary">Loading logs...</p>
         ) : filteredLogs.length === 0 ? (
-          <p className="p-6 text-center text-text-secondary-light dark:text-text-secondary-dark">
+          <p style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary-light)'}} className="dark-text-secondary">
             No logs to display
             {selectedVisit ? ` for this specific visit` : selectedPagePath ? ` for this page` : ''}
             {filterType !== 'ALL' ? ` with type ${filterType.replace(/_/g, ' ')}` : ''}
@@ -655,7 +756,7 @@ export const MonitoringDashboard: React.FC = () => {
             {dbError ? ' There might be an issue with the log database.' : ''}
           </p>
         ) : (
-          <ul className="divide-y divide-border-light dark:divide-border-dark max-h-[600px] overflow-y-auto">
+          <ul className="log-list-container" style={Object.assign({}, ulStyle, {borderTopColor: 'transparent'}, currentTheme === 'dark' ? darkUlStyle : {})}>
             {filteredLogs.map(log => (
               <LogItem key={log.id} log={log} />
             ))}
