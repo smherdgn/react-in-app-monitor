@@ -1,70 +1,120 @@
-// types.ts
+export enum LogEntryType {
+  PAGE_VIEW = 'PAGE_VIEW',
+  API_CALL = 'API_CALL',
+  COMPONENT_RENDER = 'COMPONENT_RENDER',
+  ERROR = 'ERROR',
+  CUSTOM_EVENT = 'CUSTOM_EVENT', // New type
+}
 
-export interface BaseLog {
+export interface BaseLogEntry {
   id: string;
   timestamp: number;
-  sessionId: string;
-  pagePath?: string; // Path of the page when this log was created
+  type: LogEntryType;
 }
 
-export interface PageRouteLog extends BaseLog {
-  type: 'page_route';
-  path: string; // This is the primary identifier for a page view
+export interface PageViewLogData {
+  path: string;
+  referrer?: string;
+}
+export interface PageViewLog extends BaseLogEntry {
+  type: LogEntryType.PAGE_VIEW;
+  data: PageViewLogData;
 }
 
-export interface ComponentMetricLog extends BaseLog {
-  type: 'component_metric';
-  componentName: string;
-  metricName: 'mount' | 'render' | 'unmount';
-  duration: number; // milliseconds
-}
-
-export interface ApiCallLog extends BaseLog {
-  type: 'api_call';
+export interface ApiCallLogData {
   url: string;
   method: string;
-  duration: number; // milliseconds
-  status: 'success' | 'failure';
-  statusCode?: number;
+  duration: number;
+  statusCode: number;
+  requestBody?: string;
+  responseBody?: string;
+  error?: string;
+}
+export interface ApiCallLog extends BaseLogEntry {
+  type: LogEntryType.API_CALL;
+  data: ApiCallLogData;
 }
 
-export interface ErrorLog extends BaseLog {
-  type: 'error';
+export enum ComponentEventType {
+  MOUNT = 'mount',
+  UNMOUNT = 'unmount',
+  UPDATE = 'update',
+}
+export interface ComponentRenderLogData {
+  componentName: string;
+  duration: number; // in ms
+  eventType: ComponentEventType;
+}
+export interface ComponentRenderLog extends BaseLogEntry {
+  type: LogEntryType.COMPONENT_RENDER;
+  data: ComponentRenderLogData;
+}
+
+export interface ErrorLogData {
   message: string;
-  source?: string;
-  lineno?: number;
-  colno?: number;
-  errorObject?: string; // Stringified error object
   stack?: string;
+  source: string; // e.g., 'global_error', 'unhandled_rejection', 'api_call_error'
+}
+export interface ErrorLog extends BaseLogEntry {
+  type: LogEntryType.ERROR;
+  data: ErrorLogData;
 }
 
-export type AnyLog = PageRouteLog | ComponentMetricLog | ApiCallLog | ErrorLog;
-
-export enum StorageKey {
-  PAGES = 'monitoring.pages',
-  COMPONENTS = 'monitoring.components',
-  API = 'monitoring.api',
-  ERRORS = 'monitoring.errors',
-  SETTINGS = 'monitoring.settings', // For monitoring status (on/off)
+// New Log Type for Custom Events
+export interface CustomEventLogData {
+  eventName: string;
+  details?: Record<string, any>;
+}
+export interface CustomEventLog extends BaseLogEntry {
+  type: LogEntryType.CUSTOM_EVENT;
+  data: CustomEventLogData;
 }
 
-// Represents the different views in the monitoring dashboard
-export type TabKey = 'overview' | 'pages' | 'components' | 'api' | 'errors' | 'pageDetail';
+export type LogEntry = PageViewLog | ApiCallLog | ComponentRenderLog | ErrorLog | CustomEventLog;
 
-export interface AllLogsState {
-  pages: PageRouteLog[];
-  components: ComponentMetricLog[];
-  api: ApiCallLog[];
-  errors: ErrorLog[];
+export interface IDBConfig {
+  dbName: string;
+  version: number;
+  storeName: string;
 }
 
-export interface MonitoringSettings {
-  isMonitoringActive: boolean;
+export interface ChartDataItem {
+  name: string;
+  value: number;
 }
 
-// For the combined timeline view on the page detail screen
-export interface TimelineEvent extends BaseLog {
-  eventType: 'Component Metric' | 'API Call' | 'Error Log' | 'Page Route';
-  summary: string; // A brief description of the event
-  originalLog: AnyLog; // The original log entry for detailed view
+export interface TimeChartDataItem {
+  time: number; // timestamp
+  count: number;
+}
+
+export interface PageVisit {
+  startTime: number;
+  endTime?: number; 
+  duration?: number; 
+  logIds: string[]; 
+}
+
+export interface PageInsight {
+  path: string;
+  visits: PageVisit[];
+  totalVisits: number;
+  totalApiCallCount: number;
+  totalErrorCount: number;
+  totalComponentRenderCount: number;
+  avgDuration?: number; 
+  firstViewedAt: number;
+  lastViewedAt: number;
+}
+
+// For Component Performance Hotspots
+export interface ComponentPerfStats {
+    name: string;
+    count: number;
+    totalDuration: number;
+    avgDuration: number;
+}
+export interface ComponentPerformanceData {
+    byFrequency: ComponentPerfStats[];
+    byAvgDuration: ComponentPerfStats[];
 }

@@ -1,5 +1,5 @@
 {
-  "name": "React In-App Monitor",
-  "description": "A client-side monitoring tool for React applications, capturing page routes, component metrics, API calls, and errors, and displaying them in a dashboard.",
+  "name": "In-App Monitoring Tool",
+  "description": "A self-contained, embeddable React in-app monitoring tool to record and display page navigation, API calls, component renders, and errors. Uses IndexedDB for storage and Tailwind CSS for styling.",
   "requestFramePermissions": []
 }
