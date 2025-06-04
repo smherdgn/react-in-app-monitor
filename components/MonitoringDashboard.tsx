@@ -1,316 +1,735 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useIndexedDB } from "../hooks/useIndexedDB";
-import "./MonitoringDashboard.css";
+import React from "react";
 
-import {
-  LogEntry,
-  LogEntryType,
-  ApiCallLog,
-  PageViewLog,
-  ErrorLog,
-  ComponentRenderLog,
-  ChartDataItem,
-  TimeChartDataItem,
-  ComponentEventType,
-  PageInsight,
-  PageVisit,
-  ComponentPerformanceData,
-  ComponentPerfStats,
-  CustomEventLogData,
-} from "../types";
-import { MonitoringService } from "../services/MonitoringService";
-import {
-  PlayIcon,
-  PauseIcon,
-  TrashIcon,
-  DownloadIcon,
-  SunIcon,
-  MoonIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  InfoIcon,
-  AlertTriangleIcon,
-  CodeBracketIcon,
-  EyeIcon,
-  ArrowLeftIcon,
-  ListBulletIcon,
-  ClockIcon,
-  TagIcon,
-  SimpleCpuChipIcon,
-} from "./icons";
-import { SimpleBarChart } from "./SimpleBarChart";
-import { SimpleLineChart } from "./SimpleLineChart";
-import {
-  POLLING_INTERVAL,
-  THEME_STORAGE_KEY,
-  MONITORING_STATUS_KEY,
-} from "../constants";
-import {
-  getItem as getLocalStorageItem,
-  setItem as setLocalStorageItem,
-} from "../utils/localStorageHelper";
-const getIconForLogType = (
-  type: LogEntryType,
-  className: string = "icon-default"
-) => {
-  // className will be icon-page-view, icon-api-call etc. which are defined in global CSS
-  const sizeStyle = { width: "1.25rem", height: "1.25rem" }; // Corresponds to w-5 h-5
+// Unified Dashboard Complete Component - MonitoringDashboard.jsx
+const { useState, useEffect, useMemo, useCallback } = React;
+import * as lucide from "lucide-react";
+
+const {
+  Play,
+  Pause,
+  Trash2,
+  Sun,
+  Moon,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  AlertTriangle,
+  Code,
+  Eye,
+  ArrowLeft,
+  List,
+  Clock,
+  Tag,
+  Cpu,
+  CheckCircle,
+  Settings,
+  X,
+  Edit,
+  Plus,
+  Send,
+  BarChart3,
+  Activity,
+  Globe,
+  Zap,
+  FileCode,
+  Wifi,
+  WifiOff,
+} = lucide;
+
+// Log Entry Types
+const LogEntryType = {
+  PAGE_VIEW: "PAGE_VIEW",
+  API_CALL: "API_CALL",
+  COMPONENT_RENDER: "COMPONENT_RENDER",
+  ERROR: "ERROR",
+  CUSTOM_EVENT: "CUSTOM_EVENT",
+};
+
+// Helper Functions (inline for standalone usage)
+const getLogColor = (type) => {
   switch (type) {
-    case LogEntryType.PAGE_VIEW:
-      return <EyeIcon style={sizeStyle} className="icon-page-view" />;
-    case LogEntryType.API_CALL:
-      return <CodeBracketIcon style={sizeStyle} className="icon-api-call" />;
-    case LogEntryType.COMPONENT_RENDER:
-      return <InfoIcon style={sizeStyle} className="icon-component-render" />;
-    case LogEntryType.ERROR:
-      return <AlertTriangleIcon style={sizeStyle} className="icon-error" />;
-    case LogEntryType.CUSTOM_EVENT:
-      return <TagIcon style={sizeStyle} className="icon-custom-event" />;
+    case "PAGE_VIEW":
+      return "#3B82F6";
+    case "API_CALL":
+      return "#10B981";
+    case "COMPONENT_RENDER":
+      return "#8B5CF6";
+    case "ERROR":
+      return "#EF4444";
+    case "CUSTOM_EVENT":
+      return "#F59E0B";
     default:
-      return <InfoIcon style={sizeStyle} className="icon-default" />;
+      return "#6B7280";
   }
 };
 
-const LogItem: React.FC<{ log: LogEntry }> = ({ log }) => {
+const getLogIcon = (type) => {
+  switch (type) {
+    case "PAGE_VIEW":
+      return "👁";
+    case "API_CALL":
+      return "🔗";
+    case "COMPONENT_RENDER":
+      return "⚛";
+    case "ERROR":
+      return "❌";
+    case "CUSTOM_EVENT":
+      return "🏷";
+    default:
+      return "●";
+  }
+};
+
+const getMethodBadgeClass = (method) => {
+  switch (method) {
+    case "GET":
+      return "badge-get";
+    case "POST":
+      return "badge-post";
+    case "PUT":
+      return "badge-put";
+    case "DELETE":
+      return "badge-delete";
+    case "PATCH":
+      return "badge-put";
+    default:
+      return "badge-get";
+  }
+};
+
+const formatDuration = (ms) => {
+  if (ms === undefined) return "Ongoing";
+  if (ms < 0) return "N/A";
+  if (ms < 1000) return `${ms.toFixed(0)}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${(ms / 60000).toFixed(1)}m`;
+};
+
+const stripQueryParams = (fullPath) => {
+  try {
+    const base =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "http://localhost";
+    return new URL(fullPath, base).pathname;
+  } catch (e) {
+    const qIndex = fullPath.indexOf("?");
+    return qIndex !== -1 ? fullPath.substring(0, qIndex) : fullPath;
+  }
+};
+
+// Mock Data Generator
+const generateMockLogs = (count = 20) => {
+  const types = [
+    "PAGE_VIEW",
+    "API_CALL",
+    "COMPONENT_RENDER",
+    "ERROR",
+    "CUSTOM_EVENT",
+  ];
+  const paths = ["/dashboard", "/profile", "/settings", "/analytics", "/users"];
+  const methods = ["GET", "POST", "PUT", "DELETE"];
+  const urls = ["/api/users", "/api/posts", "/api/analytics", "/api/settings"];
+  const components = [
+    "UserList",
+    "Dashboard",
+    "ProfileForm",
+    "AnalyticsChart",
+    "Navigation",
+  ];
+
+  const logs = [];
+  const now = Date.now();
+
+  for (let i = 0; i < count; i++) {
+    const type = types[Math.floor(Math.random() * types.length)];
+    const timestamp = now - Math.random() * 24 * 60 * 60 * 1000;
+
+    let data;
+    switch (type) {
+      case "PAGE_VIEW":
+        data = {
+          path: paths[Math.floor(Math.random() * paths.length)],
+          referrer: Math.random() > 0.5 ? "/" : undefined,
+        };
+        break;
+      case "API_CALL":
+        data = {
+          method: methods[Math.floor(Math.random() * methods.length)],
+          url: urls[Math.floor(Math.random() * urls.length)],
+          statusCode: Math.random() > 0.1 ? 200 : 404,
+          duration: 50 + Math.random() * 500,
+          responseBody: { data: "mock response" },
+        };
+        break;
+      case "COMPONENT_RENDER":
+        data = {
+          componentName:
+            components[Math.floor(Math.random() * components.length)],
+          eventType: Math.random() > 0.5 ? "mount" : "render",
+          duration: 1 + Math.random() * 50,
+        };
+        break;
+      case "ERROR":
+        data = {
+          message: "Network timeout error",
+          source: "MockService",
+          stack:
+            "Error: Network timeout\n    at MockService.fetchData (line 42)",
+        };
+        break;
+      case "CUSTOM_EVENT":
+        data = {
+          eventName: "user_interaction",
+          details: { action: "click", element: "button" },
+        };
+        break;
+    }
+
+    logs.push({
+      id: `mock-${i}-${Date.now()}`,
+      type,
+      timestamp,
+      data,
+    });
+  }
+
+  return logs.sort((a, b) => b.timestamp - a.timestamp);
+};
+
+// Generate Mock Test Requests
+const generateMockTestRequests = () => [
+  {
+    id: "get-users",
+    name: "Get All Users",
+    method: "GET",
+    url: "https://jsonplaceholder.typicode.com/users",
+    expectedStatus: 200,
+  },
+  {
+    id: "create-post",
+    name: "Create New Post",
+    method: "POST",
+    url: "https://jsonplaceholder.typicode.com/posts",
+    body: JSON.stringify(
+      {
+        title: "Test Post",
+        body: "This is a test post for API monitoring",
+        userId: 1,
+      },
+      null,
+      2
+    ),
+    expectedStatus: 201,
+  },
+  {
+    id: "get-post",
+    name: "Get Single Post",
+    method: "GET",
+    url: "https://jsonplaceholder.typicode.com/posts/1",
+    expectedStatus: 200,
+  },
+  {
+    id: "update-post",
+    name: "Update Post",
+    method: "PUT",
+    url: "https://jsonplaceholder.typicode.com/posts/1",
+    body: JSON.stringify(
+      {
+        id: 1,
+        title: "Updated Post Title",
+        body: "Updated post content",
+        userId: 1,
+      },
+      null,
+      2
+    ),
+    expectedStatus: 200,
+  },
+  {
+    id: "delete-post",
+    name: "Delete Post",
+    method: "DELETE",
+    url: "https://jsonplaceholder.typicode.com/posts/1",
+    expectedStatus: 200,
+  },
+  {
+    id: "test-404",
+    name: "Test 404 Error",
+    method: "GET",
+    url: "https://jsonplaceholder.typicode.com/invalid-endpoint",
+    expectedStatus: 404,
+  },
+];
+
+// Timeline Chart Component
+const TimelineChart = ({ logs }) => {
+  const chartData = useMemo(() => {
+    const sortedLogs = [...logs].sort((a, b) => a.timestamp - b.timestamp);
+    const now = Date.now();
+    const timeWindow = 10 * 60 * 1000; // 10 minutes
+    const startTime = now - timeWindow;
+
+    return sortedLogs
+      .filter((log) => log.timestamp >= startTime)
+      .map((log, index) => ({
+        ...log,
+        x: ((log.timestamp - startTime) / timeWindow) * 100,
+        y: (index % 3) * 25 + 10,
+        color: getLogColor(log.type),
+      }));
+  }, [logs]);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h3 className="card-title">
+          <BarChart3 style={{ width: "1.25rem", height: "1.25rem" }} />
+          Activity Timeline (Last 10 minutes)
+        </h3>
+      </div>
+      <div className="card-content">
+        <div className="timeline">
+          {chartData.length === 0 ? (
+            <div className="empty-state">No recent activity</div>
+          ) : (
+            chartData.map((item) => (
+              <div
+                key={item.id}
+                className="timeline-point"
+                style={{
+                  left: `${item.x}%`,
+                  top: `${item.y}%`,
+                  backgroundColor: item.color,
+                }}
+                title={`${item.type} - ${new Date(
+                  item.timestamp
+                ).toLocaleTimeString()}`}
+              >
+                <div className="timeline-tooltip">
+                  {getLogIcon(item.type)} {item.type.replace(/_/g, " ")}
+                  <br />
+                  {new Date(item.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            ))
+          )}
+
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: "0.75rem",
+              color: "#9ca3af",
+              padding: "0 0.5rem",
+            }}
+          >
+            <span>10m ago</span>
+            <span>5m ago</span>
+            <span>Now</span>
+          </div>
+        </div>
+
+        <div className="legend">
+          {[
+            { type: "PAGE_VIEW", label: "Page Views", color: "#3B82F6" },
+            { type: "API_CALL", label: "API Calls", color: "#10B981" },
+            { type: "COMPONENT_RENDER", label: "Renders", color: "#8B5CF6" },
+            { type: "ERROR", label: "Errors", color: "#EF4444" },
+            { type: "CUSTOM_EVENT", label: "Events", color: "#F59E0B" },
+          ].map((item) => (
+            <div key={item.type} className="legend-item">
+              <div
+                className="legend-color"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="text-gray">{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Log Item Component
+const LogItem = ({ log }) => {
   const [expanded, setExpanded] = useState(false);
+
+  const getIconForLogType = (type) => {
+    const iconStyle = { width: "1rem", height: "1rem" };
+    switch (type) {
+      case LogEntryType.PAGE_VIEW:
+        return React.createElement(Eye, { style: iconStyle });
+      case LogEntryType.API_CALL:
+        return React.createElement(Code, { style: iconStyle });
+      case LogEntryType.COMPONENT_RENDER:
+        return React.createElement(Info, { style: iconStyle });
+      case LogEntryType.ERROR:
+        return React.createElement(AlertTriangle, { style: iconStyle });
+      case LogEntryType.CUSTOM_EVENT:
+        return React.createElement(Tag, { style: iconStyle });
+      default:
+        return React.createElement(Info, { style: iconStyle });
+    }
+  };
 
   const renderLogData = () => {
     switch (log.type) {
       case LogEntryType.PAGE_VIEW:
-        const pvData = log.data as PageViewLog["data"];
-        return (
-          <p>
-            Path: {pvData.path}
-            {pvData.referrer && (
-              <span style={{ fontSize: "0.75rem", display: "block" }}>
-                Referrer: {pvData.referrer}
-              </span>
-            )}
-          </p>
+        const pvData = log.data;
+        return React.createElement(
+          "p",
+          { className: "text-sm" },
+          `Path: ${pvData.path}`,
+          pvData.referrer &&
+            React.createElement(
+              "span",
+              {
+                className: "text-xs text-gray mt-1",
+                style: { display: "block" },
+              },
+              `Referrer: ${pvData.referrer}`
+            )
         );
+
       case LogEntryType.API_CALL:
-        const apiData = log.data as ApiCallLog["data"];
-        return (
-          <div>
-            <p>
-              <strong>{apiData.method}</strong> {apiData.url}
-            </p>
-            <p>
-              Status:{" "}
-              <span
-                style={{
-                  color:
-                    apiData.statusCode >= 400
-                      ? "var(--error-light)"
-                      : "var(--success-light)",
-                }}
-                className={
-                  apiData.statusCode >= 400
-                    ? "dark-error-text"
-                    : "dark-success-text"
-                }
-              >
-                {apiData.statusCode}
-              </span>
-              , Duration: {apiData.duration.toFixed(2)}ms
-            </p>
-            {apiData.error && (
-              <p
-                style={{ color: "var(--error-light)" }}
-                className="dark-error-text"
-              >
-                Error: {apiData.error}
-              </p>
-            )}
-            {expanded && (
-              <div
-                style={{
-                  marginTop: "0.5rem",
-                  fontSize: "0.75rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
-                }}
-              >
-                {apiData.requestBody && (
-                  <p>
-                    <strong>Request:</strong>{" "}
-                    <pre style={preStyle}>{apiData.requestBody}</pre>
-                  </p>
-                )}
-                {apiData.responseBody && (
-                  <p>
-                    <strong>Response:</strong>{" "}
-                    <pre style={preStyle}>{apiData.responseBody}</pre>
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+        const apiData = log.data;
+        return React.createElement(
+          "div",
+          { className: "text-sm" },
+          React.createElement(
+            "p",
+            null,
+            React.createElement("strong", null, apiData.method),
+            ` ${apiData.url}`
+          ),
+          React.createElement(
+            "p",
+            { className: "flex gap-2 text-xs" },
+            React.createElement(
+              "span",
+              null,
+              "Status: ",
+              React.createElement(
+                "span",
+                {
+                  className:
+                    apiData.statusCode >= 400 ? "text-red" : "text-green",
+                },
+                apiData.statusCode
+              )
+            ),
+            React.createElement(
+              "span",
+              null,
+              `Duration: ${apiData.duration?.toFixed(2)}ms`
+            )
+          ),
+          expanded &&
+            apiData.requestBody &&
+            React.createElement(
+              "div",
+              { className: "mt-2" },
+              React.createElement(
+                "p",
+                { className: "text-xs font-medium mb-1" },
+                "Request:"
+              ),
+              React.createElement(
+                "pre",
+                { className: "code-block" },
+                JSON.stringify(apiData.requestBody, null, 2)
+              )
+            ),
+          expanded &&
+            apiData.responseBody &&
+            React.createElement(
+              "div",
+              { className: "mt-2" },
+              React.createElement(
+                "p",
+                { className: "text-xs font-medium mb-1" },
+                "Response:"
+              ),
+              React.createElement(
+                "pre",
+                { className: "code-block" },
+                JSON.stringify(apiData.responseBody, null, 2)
+              )
+            )
         );
+
       case LogEntryType.COMPONENT_RENDER:
-        const crData = log.data as ComponentRenderLog["data"];
-        return (
-          <p>
-            Component: {crData.componentName}, Event: {crData.eventType},
-            Duration: {crData.duration.toFixed(2)}ms
-          </p>
+        const crData = log.data;
+        return React.createElement(
+          "p",
+          { className: "text-sm" },
+          `Component: `,
+          React.createElement("strong", null, crData.componentName),
+          ` • Event: ${crData.eventType} • Duration: ${crData.duration.toFixed(
+            2
+          )}ms`
         );
+
       case LogEntryType.ERROR:
-        const errData = log.data as ErrorLog["data"];
-        return (
-          <div>
-            <p
-              style={{ color: "var(--error-light)" }}
-              className="dark-error-text"
-            >
-              Error: {errData.message}
-            </p>
-            <p style={{ fontSize: "0.75rem" }}>Source: {errData.source}</p>
-            {expanded && errData.stack && (
-              <pre style={{ ...preStyle, marginTop: "0.5rem" }}>
-                {errData.stack}
-              </pre>
-            )}
-          </div>
+        const errData = log.data;
+        return React.createElement(
+          "div",
+          { className: "text-sm" },
+          React.createElement(
+            "p",
+            { className: "text-red font-medium" },
+            `Error: ${errData.message}`
+          ),
+          React.createElement(
+            "p",
+            { className: "text-xs text-gray mt-1" },
+            `Source: ${errData.source}`
+          ),
+          expanded &&
+            errData.stack &&
+            React.createElement(
+              "pre",
+              {
+                className: "code-block mt-2",
+                style: { backgroundColor: "var(--error-bg, #fef2f2)" },
+              },
+              errData.stack
+            )
         );
-      case LogEntryType.CUSTOM_EVENT:
-        const ceData = log.data as CustomEventLogData;
-        return (
-          <div>
-            <p>
-              Event: <strong>{ceData.eventName}</strong>
-            </p>
-            {expanded && ceData.details && (
-              <pre style={{ ...preStyle, marginTop: "0.5rem" }}>
-                {JSON.stringify(ceData.details, null, 2)}
-              </pre>
-            )}
-          </div>
-        );
+
       default:
-        return <p>Unknown log type</p>;
+        return React.createElement(
+          "p",
+          { className: "text-sm" },
+          "Unknown log type"
+        );
     }
   };
 
   const canExpand =
     log.type === LogEntryType.API_CALL ||
-    (log.type === LogEntryType.ERROR && (log.data as ErrorLog["data"]).stack) ||
-    (log.type === LogEntryType.CUSTOM_EVENT &&
-      (log.data as CustomEventLogData).details);
+    (log.type === LogEntryType.ERROR && log.data.stack);
 
-  const listItemStyle: React.CSSProperties = {
-    padding: "0.75rem 1rem",
-    borderBottom: "1px solid var(--border-light)",
-    transition: "background-color 0.15s ease-in-out",
-  };
-  const darkListItemStyle: React.CSSProperties = {
-    borderBottomColor: "var(--border-dark)",
-  };
-  const preStyle: React.CSSProperties = {
-    backgroundColor: "var(--surface-medium-light)",
-    padding: "0.25rem",
-    borderRadius: "0.25rem",
-    maxHeight: "5rem",
-    overflow: "auto",
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-all",
-  };
-
-  return (
-    <li
-      style={Object.assign(
-        {},
-        listItemStyle,
-        document.documentElement.classList.contains("dark")
-          ? darkListItemStyle
-          : {}
-      )}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.backgroundColor =
-          document.documentElement.classList.contains("dark")
-            ? "rgba(55, 65, 81, 0.5)"
-            : "#F9FAFB")
-      }
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.backgroundColor = "transparent")
-      }
-    >
-      <div
-        style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}
-      >
-        <div style={{ flexShrink: 0, paddingTop: "0.25rem" }}>
-          {getIconForLogType(log.type)}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{ fontSize: "0.875rem", color: "var(--text-primary-light)" }}
-            className="dark-text-primary"
-          >
-            {renderLogData()}
-          </div>
-          <p
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            {new Date(log.timestamp).toLocaleString()}
-          </p>
-        </div>
-        {canExpand && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="btn-icon" // This class is defined in global styles
-            style={{ padding: "0.25rem", borderRadius: "0.375rem" }}
-            aria-label={expanded ? "Collapse details" : "Expand details"}
-          >
-            {expanded ? (
-              <ChevronUpIcon style={{ width: "1.25rem", height: "1.25rem" }} />
-            ) : (
-              <ChevronDownIcon
-                style={{ width: "1.25rem", height: "1.25rem" }}
-              />
-            )}
-          </button>
-        )}
-      </div>
-    </li>
+  return React.createElement(
+    "li",
+    { className: "list-item" },
+    React.createElement(
+      "div",
+      { className: "flex-start gap-3" },
+      React.createElement(
+        "div",
+        { className: "p-1", style: { flexShrink: 0 } },
+        getIconForLogType(log.type)
+      ),
+      React.createElement(
+        "div",
+        { style: { flex: 1, minWidth: 0 } },
+        renderLogData(),
+        React.createElement(
+          "p",
+          { className: "text-xs text-gray mt-2" },
+          new Date(log.timestamp).toLocaleString()
+        )
+      ),
+      canExpand &&
+        React.createElement(
+          "button",
+          {
+            onClick: () => setExpanded(!expanded),
+            className: "icon-btn p-1",
+            "aria-label": expanded ? "Collapse" : "Expand",
+          },
+          expanded
+            ? React.createElement(ChevronUp, {
+                style: { width: "1rem", height: "1rem" },
+              })
+            : React.createElement(ChevronDown, {
+                style: { width: "1rem", height: "1rem" },
+              })
+        )
+    )
   );
 };
 
-export const MonitoringDashboard: React.FC = () => {
-  const {
-    logs,
-    isLoading,
-    dbError,
-    fetchLogs,
-    clearLogs: clearDBLogs,
-  } = useIndexedDB();
-  const [isMonitoringActive, setIsMonitoringActive] = useState<boolean>(() =>
-    getLocalStorageItem(MONITORING_STATUS_KEY, MonitoringService.isRunning)
+// Request Card Component
+const RequestCard = ({
+  request,
+  onEdit,
+  onDelete,
+  onExecute,
+  result,
+  isLoading,
+}) => {
+  return React.createElement(
+    "div",
+    { className: "card", style: { marginBottom: "1rem" } },
+    React.createElement(
+      "div",
+      { className: "flex-between mb-3" },
+      React.createElement(
+        "div",
+        { style: { flex: 1, minWidth: 0 } },
+        React.createElement(
+          "h4",
+          { className: "font-medium truncate", style: { margin: 0 } },
+          request.name
+        ),
+        React.createElement(
+          "p",
+          { className: "text-sm text-gray truncate mt-1" },
+          request.url
+        )
+      ),
+      React.createElement(
+        "div",
+        { className: "flex gap-2", style: { marginLeft: "0.75rem" } },
+        React.createElement(
+          "button",
+          {
+            onClick: () => onEdit(request),
+            className: "icon-btn",
+            "aria-label": "Edit request",
+          },
+          React.createElement(Edit, {
+            style: { width: "1rem", height: "1rem" },
+          })
+        ),
+        React.createElement(
+          "button",
+          {
+            onClick: () => onDelete(request.id),
+            className: "icon-btn text-red",
+            "aria-label": "Delete request",
+          },
+          React.createElement(Trash2, {
+            style: { width: "1rem", height: "1rem" },
+          })
+        )
+      )
+    ),
+    React.createElement(
+      "div",
+      { className: "flex gap-2 text-sm mb-3" },
+      React.createElement(
+        "span",
+        { className: `badge ${getMethodBadgeClass(request.method)}` },
+        request.method
+      ),
+      request.expectedStatus &&
+        React.createElement(
+          "span",
+          { className: "text-gray" },
+          `Expected: ${request.expectedStatus}`
+        )
+    ),
+    result &&
+      React.createElement(
+        "div",
+        {
+          className: `text-sm mb-3 ${
+            result.status === "success" ? "text-green" : "text-red"
+          }`,
+        },
+        result.status === "success" &&
+          React.createElement(
+            "div",
+            { className: "flex gap-2" },
+            React.createElement(CheckCircle, {
+              style: { width: "1rem", height: "1rem" },
+            }),
+            React.createElement(
+              "span",
+              null,
+              `✓ ${result.actualStatus} (${result.duration}ms)`
+            )
+          ),
+        result.status === "error" &&
+          React.createElement(
+            "div",
+            { className: "flex gap-2" },
+            React.createElement(AlertTriangle, {
+              style: { width: "1rem", height: "1rem" },
+            }),
+            React.createElement(
+              "span",
+              null,
+              `✗ ${result.actualStatus || "Failed"} (${result.duration}ms)`
+            )
+          )
+      ),
+    React.createElement(
+      "button",
+      {
+        onClick: () => onExecute(request),
+        disabled: isLoading,
+        className: "btn btn-primary",
+        style: {
+          width: "100%",
+          justifyContent: "center",
+          opacity: isLoading ? 0.7 : 1,
+        },
+      },
+      isLoading
+        ? [
+            React.createElement("div", {
+              key: "spinner",
+              className: "spinner",
+            }),
+            "Testing...",
+          ]
+        : [
+            React.createElement(Send, {
+              key: "icon",
+              style: { width: "1rem", height: "1rem" },
+            }),
+            "Run Test",
+          ]
+    )
   );
-  const [currentTheme, setCurrentTheme] = useState<"light" | "dark">(() =>
-    getLocalStorageItem<"light" | "dark">(THEME_STORAGE_KEY, "light")
+};
+
+// Main Dashboard Component
+const MonitoringDashboard = () => {
+  // Initialize mock data
+  const [logs, setLogs] = useState(() => generateMockLogs(20));
+  const [testRequests, setTestRequests] = useState(() =>
+    generateMockTestRequests()
   );
-  const [filterType, setFilterType] = useState<LogEntryType | "ALL">("ALL");
-  const [searchTerm, setSearchTerm] = useState<string>("");
 
-  const [selectedPagePath, setSelectedPagePath] = useState<string | null>(null);
-  const [selectedVisit, setSelectedVisit] = useState<PageVisit | null>(null);
+  // State Management
+  const [activeView, setActiveView] = useState("monitoring");
+  const [isMonitoringActive, setIsMonitoringActive] = useState(true);
+  const [currentTheme, setCurrentTheme] = useState("light");
+  const [filterType, setFilterType] = useState("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPagePath, setSelectedPagePath] = useState(null);
 
+  // API Testing states
+  const [loadingStates, setLoadingStates] = useState({});
+  const [results, setResults] = useState({});
+  const [stats, setStats] = useState({ success: 0, error: 0, total: 0 });
+  const [requestLog, setRequestLog] = useState([]);
+
+  // Modal states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRequest, setEditingRequest] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    method: "GET",
+    url: "",
+    body: "",
+    expectedStatus: 200,
+  });
+
+  // Theme management
   useEffect(() => {
-    MonitoringService.isRunning = isMonitoringActive;
-  }, [isMonitoringActive]);
-
-  useEffect(() => {
-    if (currentTheme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    setLocalStorageItem(THEME_STORAGE_KEY, currentTheme);
+    document.documentElement.classList.toggle("dark", currentTheme === "dark");
   }, [currentTheme]);
 
   const toggleTheme = () => {
@@ -318,127 +737,235 @@ export const MonitoringDashboard: React.FC = () => {
   };
 
   const toggleMonitoring = () => {
-    const newStatus = MonitoringService.toggleMonitoring();
-    setIsMonitoringActive(newStatus);
-    setLocalStorageItem(MONITORING_STATUS_KEY, newStatus);
+    setIsMonitoringActive((prev) => !prev);
   };
 
-  const handleClearLogs = async () => {
-    if (
-      window.confirm(
-        "Are you sure you want to clear all logs? This cannot be undone."
-      )
-    ) {
-      await clearDBLogs();
-      setSelectedPagePath(null);
-      setSelectedVisit(null);
+  // API Testing functions
+  const setLoading = (key, loading) => {
+    setLoadingStates((prev) => ({ ...prev, [key]: loading }));
+  };
+
+  const setResult = (key, result) => {
+    setResults((prev) => ({ ...prev, [key]: result }));
+    if (result.status === "success") {
+      setStats((prev) => ({
+        ...prev,
+        success: prev.success + 1,
+        total: prev.total + 1,
+      }));
+    } else if (result.status === "error") {
+      setStats((prev) => ({
+        ...prev,
+        error: prev.error + 1,
+        total: prev.total + 1,
+      }));
     }
   };
 
-  const downloadLogs = () => {
-    const logsToDownload = filteredLogs;
-    const json = JSON.stringify(logsToDownload, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    let fileName = "monitoring_logs";
-    if (selectedVisit) {
-      const safePagePath = selectedPagePath
-        ? selectedPagePath.replace(/[^a-zA-Z0-9_.-]/g, "_")
-        : "unknownpage";
-      fileName += `_visit_${safePagePath}_${new Date(selectedVisit.startTime)
-        .toISOString()
-        .replace(/:/g, "-")}`;
-    } else if (selectedPagePath) {
-      const safePagePath = selectedPagePath.replace(/[^a-zA-Z0-9_.-]/g, "_");
-      fileName += `_page_${safePagePath}`;
-    }
-    fileName += `_${new Date().toISOString().replace(/:/g, "-")}.json`;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const addToLog = (logEntry) => {
+    setRequestLog((prev) => [logEntry, ...prev.slice(0, 19)]);
   };
 
-  const handleBackToAll = () => {
-    setSelectedPagePath(null);
-    setSelectedVisit(null);
-  };
+  const executeApiRequest = async (testRequest) => {
+    const startTime = performance.now();
 
-  useEffect(() => {
-    const handleNewLog = () => fetchLogs();
-    window.addEventListener("monitoring_new_log", handleNewLog);
-
-    const intervalId = setInterval(fetchLogs, POLLING_INTERVAL);
-
-    const mountTime = performance.now();
-    MonitoringService.logComponentRender({
-      componentName: "MonitoringDashboard",
-      eventType: ComponentEventType.MOUNT,
-      duration: 0,
-    });
-
-    return () => {
-      window.removeEventListener("monitoring_new_log", handleNewLog);
-      clearInterval(intervalId);
-      MonitoringService.logComponentRender({
-        componentName: "MonitoringDashboard",
-        eventType: ComponentEventType.UNMOUNT,
-        duration: performance.now() - mountTime,
-      });
+    const logEntry = {
+      id: Date.now().toString(),
+      name: testRequest.name,
+      method: testRequest.method,
+      url: testRequest.url,
+      timestamp: new Date().toLocaleTimeString(),
+      requestBody: testRequest.body ? JSON.parse(testRequest.body) : undefined,
+      expected: testRequest.expectedStatus,
     };
-  }, [fetchLogs]);
 
-  const stripQueryParams = (fullPath: string): string => {
     try {
-      // Use a dummy base if the path is relative, URL needs a base.
-      const base =
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "http://localhost";
-      return new URL(fullPath, base).pathname;
-    } catch (e) {
-      // Fallback for invalid paths or if URL constructor fails
-      const qIndex = fullPath.indexOf("?");
-      return qIndex !== -1 ? fullPath.substring(0, qIndex) : fullPath;
+      const options = {
+        method: testRequest.method,
+        headers: {
+          "Content-Type": "application/json",
+          ...testRequest.headers,
+        },
+      };
+
+      if (
+        testRequest.body &&
+        testRequest.method !== "GET" &&
+        testRequest.method !== "DELETE"
+      ) {
+        options.body = testRequest.body;
+      }
+
+      const response = await fetch(testRequest.url, options);
+      const duration = performance.now() - startTime;
+
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch {
+        responseData = await response.text();
+      }
+
+      const finalLogEntry = {
+        ...logEntry,
+        responseStatus: response.status,
+        responseData: responseData,
+        duration: Math.round(duration),
+      };
+
+      addToLog(finalLogEntry);
+
+      // Add to monitoring logs
+      const monitoringLog = {
+        id: Date.now().toString(),
+        type: "API_CALL",
+        timestamp: Date.now(),
+        data: {
+          method: testRequest.method,
+          url: testRequest.url,
+          statusCode: response.status,
+          duration: duration,
+          requestBody: testRequest.body
+            ? JSON.parse(testRequest.body)
+            : undefined,
+          responseBody: responseData,
+        },
+      };
+      setLogs((prev) => [monitoringLog, ...prev]);
+
+      const isSuccess = testRequest.expectedStatus
+        ? response.status === testRequest.expectedStatus
+        : response.status >= 200 && response.status < 300;
+
+      return {
+        status: isSuccess ? "success" : "error",
+        actualStatus: response.status,
+        duration: Math.round(duration),
+      };
+    } catch (err) {
+      const duration = performance.now() - startTime;
+
+      const errorLogEntry = {
+        ...logEntry,
+        error: err.message || "Request failed",
+        duration: Math.round(duration),
+      };
+
+      addToLog(errorLogEntry);
+
+      // Add error to monitoring logs
+      const errorLog = {
+        id: Date.now().toString(),
+        type: "ERROR",
+        timestamp: Date.now(),
+        data: {
+          message: err.message || "Request failed",
+          source: `API Test: ${testRequest.name}`,
+        },
+      };
+      setLogs((prev) => [errorLog, ...prev]);
+
+      return {
+        status: "error",
+        duration: Math.round(duration),
+        error: err.message,
+      };
     }
   };
 
-  const pageInsights = useMemo((): PageInsight[] => {
+  const handleExecuteRequest = async (testRequest) => {
+    const key = testRequest.id;
+    setLoading(key, true);
+    setResult(key, { status: null });
+
+    try {
+      const result = await executeApiRequest(testRequest);
+      setResult(key, result);
+    } catch (error) {
+      console.error("Request execution failed:", error);
+      setResult(key, {
+        status: "error",
+        error: error.message,
+      });
+    } finally {
+      setLoading(key, false);
+    }
+  };
+
+  const openEditModal = (request = null) => {
+    if (request) {
+      setEditingRequest(request);
+      setEditForm({
+        name: request.name,
+        method: request.method,
+        url: request.url,
+        body: request.body || "",
+        expectedStatus: request.expectedStatus || 200,
+      });
+    } else {
+      setEditingRequest(null);
+      setEditForm({
+        name: "",
+        method: "GET",
+        url: "",
+        body: "",
+        expectedStatus: 200,
+      });
+    }
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingRequest(null);
+  };
+
+  const saveRequest = () => {
+    const newRequest = {
+      id: editingRequest?.id || Date.now().toString(),
+      name: editForm.name,
+      method: editForm.method,
+      url: editForm.url,
+      body: editForm.body.trim() || undefined,
+      expectedStatus: editForm.expectedStatus,
+    };
+
+    if (editingRequest) {
+      setTestRequests((prev) =>
+        prev.map((req) => (req.id === editingRequest.id ? newRequest : req))
+      );
+    } else {
+      setTestRequests((prev) => [...prev, newRequest]);
+    }
+
+    closeEditModal();
+  };
+
+  const deleteRequest = (id) => {
+    setTestRequests((prev) => prev.filter((req) => req.id !== id));
+  };
+
+  // Generate page insights
+  const generatePageInsights = useCallback((logs) => {
     if (!logs.length) return [];
 
     const sortedLogs = [...logs].sort((a, b) => a.timestamp - b.timestamp);
-    const pageViewEvents = sortedLogs.filter(
-      (log) => log.type === LogEntryType.PAGE_VIEW
-    ) as PageViewLog[];
-    const insightsMap: Map<string, PageInsight> = new Map();
+    const pageViewEvents = sortedLogs.filter((log) => log.type === "PAGE_VIEW");
+    const insightsMap = new Map();
 
     for (let i = 0; i < pageViewEvents.length; i++) {
       const currentPv = pageViewEvents[i];
-      const pathWithoutParams = stripQueryParams(currentPv.data.path); // Strip params for grouping
+      const pathWithoutParams = stripQueryParams(currentPv.data.path);
       const lastLogTimestamp = sortedLogs[sortedLogs.length - 1].timestamp;
 
       const startTime = currentPv.timestamp;
       const endTime = pageViewEvents[i + 1]?.timestamp ?? lastLogTimestamp;
 
-      const visitLogs: LogEntry[] = sortedLogs.filter((log) => {
-        return log.timestamp >= startTime && log.timestamp < endTime;
-      });
+      const visitLogs = sortedLogs.filter(
+        (log) => log.timestamp >= startTime && log.timestamp < endTime
+      );
 
-      if (i === pageViewEvents.length - 1) {
-        const remainingLogs = sortedLogs.filter(
-          (log) => log.timestamp >= startTime && log.timestamp >= endTime
-        );
-        visitLogs.push(
-          ...remainingLogs.filter(
-            (rl) => !visitLogs.find((vl) => vl.id === rl.id)
-          )
-        );
-      }
-
-      const pageVisit: PageVisit = {
+      const pageVisit = {
         startTime,
         endTime: i === pageViewEvents.length - 1 ? undefined : endTime,
         duration:
@@ -446,10 +973,10 @@ export const MonitoringDashboard: React.FC = () => {
         logIds: visitLogs.map((l) => l.id),
       };
 
-      let pageInsight = insightsMap.get(pathWithoutParams); // Use stripped path for map key
+      let pageInsight = insightsMap.get(pathWithoutParams);
       if (!pageInsight) {
         pageInsight = {
-          path: pathWithoutParams, // Store stripped path
+          path: pathWithoutParams,
           visits: [],
           totalVisits: 0,
           totalApiCallCount: 0,
@@ -468,54 +995,45 @@ export const MonitoringDashboard: React.FC = () => {
         startTime
       );
 
-      const allLogsForThisPath = sortedLogs.filter((log) => {
-        return pageInsight!.visits.some(
+      const allLogsForThisPath = sortedLogs.filter((log) =>
+        pageInsight.visits.some(
           (v) =>
             log.timestamp >= v.startTime &&
             (v.endTime
               ? log.timestamp < v.endTime
-              : log.timestamp <= pageInsight!.lastViewedAt)
-        );
-      });
+              : log.timestamp <= pageInsight.lastViewedAt)
+        )
+      );
 
       pageInsight.totalApiCallCount = allLogsForThisPath.filter(
-        (l) => l.type === LogEntryType.API_CALL
+        (l) => l.type === "API_CALL"
       ).length;
       pageInsight.totalErrorCount = allLogsForThisPath.filter(
-        (l) => l.type === LogEntryType.ERROR
+        (l) => l.type === "ERROR"
       ).length;
       pageInsight.totalComponentRenderCount = allLogsForThisPath.filter(
-        (l) => l.type === LogEntryType.COMPONENT_RENDER
+        (l) => l.type === "COMPONENT_RENDER"
       ).length;
 
       insightsMap.set(pathWithoutParams, pageInsight);
     }
 
-    insightsMap.forEach((insight) => {
-      const durations = insight.visits
-        .map((v) => v.duration)
-        .filter((d) => d !== undefined) as number[];
-      if (durations.length > 0) {
-        insight.avgDuration =
-          durations.reduce((sum, d) => sum + d, 0) / durations.length;
-      }
-    });
-
     return Array.from(insightsMap.values()).sort(
       (a, b) => b.lastViewedAt - a.lastViewedAt
     );
-  }, [logs]);
+  }, []);
+
+  // Computed values
+  const pageInsights = useMemo(
+    () => generatePageInsights(logs),
+    [logs, generatePageInsights]
+  );
 
   const getSourceLogsForStats = useCallback(() => {
-    if (selectedVisit) {
-      const relevantLogIds = new Set<string>(selectedVisit.logIds);
-      return logs.filter((log) => relevantLogIds.has(log.id));
-    }
     if (selectedPagePath) {
-      // selectedPagePath is already stripped
       const insight = pageInsights.find((p) => p.path === selectedPagePath);
       if (insight) {
-        const relevantLogIds = new Set<string>();
+        const relevantLogIds = new Set();
         insight.visits.forEach((visit) =>
           visit.logIds.forEach((id) => relevantLogIds.add(id))
         );
@@ -524,7 +1042,7 @@ export const MonitoringDashboard: React.FC = () => {
       return [];
     }
     return logs;
-  }, [logs, selectedPagePath, selectedVisit, pageInsights]);
+  }, [logs, selectedPagePath, pageInsights]);
 
   const filteredLogs = useMemo(() => {
     let displayLogs = getSourceLogsForStats();
@@ -548,1062 +1066,1026 @@ export const MonitoringDashboard: React.FC = () => {
         } catch (e) {
           /* ignore */
         }
-        if (dataString.includes(lowerSearchTerm)) return true;
-
-        return false;
+        return dataString.includes(lowerSearchTerm);
       });
     }
+
     return displayLogs.sort((a, b) => b.timestamp - a.timestamp);
   }, [getSourceLogsForStats, filterType, searchTerm]);
 
   const summaryStats = useMemo(() => {
     const sourceLogs = getSourceLogsForStats();
     return {
-      pageViews: sourceLogs.filter((log) => log.type === LogEntryType.PAGE_VIEW)
-        .length,
-      apiCalls: sourceLogs.filter((log) => log.type === LogEntryType.API_CALL)
-        .length,
-      errors: sourceLogs.filter((log) => log.type === LogEntryType.ERROR)
-        .length,
+      pageViews: sourceLogs.filter((log) => log.type === "PAGE_VIEW").length,
+      apiCalls: sourceLogs.filter((log) => log.type === "API_CALL").length,
+      errors: sourceLogs.filter((log) => log.type === "ERROR").length,
       componentRenders: sourceLogs.filter(
-        (log) => log.type === LogEntryType.COMPONENT_RENDER
+        (log) => log.type === "COMPONENT_RENDER"
       ).length,
-      customEvents: sourceLogs.filter(
-        (log) => log.type === LogEntryType.CUSTOM_EVENT
-      ).length,
+      customEvents: sourceLogs.filter((log) => log.type === "CUSTOM_EVENT")
+        .length,
     };
   }, [getSourceLogsForStats]);
 
-  const apiDurationData: ChartDataItem[] = useMemo(() => {
-    const sourceLogs = getSourceLogsForStats();
-    const apiCalls = sourceLogs.filter(
-      (log) => log.type === LogEntryType.API_CALL
-    ) as ApiCallLog[];
-    const durations: {
-      [key: string]: { totalDuration: number; count: number };
-    } = {};
-    apiCalls.forEach((call) => {
-      try {
-        const endpoint = new URL(
-          call.data.url,
-          typeof window !== "undefined"
-            ? window.location.origin
-            : "http://localhost"
-        ).pathname;
-        if (!durations[endpoint]) {
-          durations[endpoint] = { totalDuration: 0, count: 0 };
-        }
-        durations[endpoint].totalDuration += call.data.duration;
-        durations[endpoint].count += 1;
-      } catch (e) {
-        console.warn("Invalid URL in API log for chart:", call.data.url);
-      }
-    });
-    return Object.entries(durations)
-      .map(([name, data]) => ({ name, value: data.totalDuration / data.count }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [getSourceLogsForStats]);
-
-  const pageNavigationData: TimeChartDataItem[] = useMemo(() => {
-    const sourceLogs = getSourceLogsForStats();
-    const pageViews = sourceLogs.filter(
-      (log) => log.type === LogEntryType.PAGE_VIEW
-    ) as PageViewLog[];
-
-    const intervalMillis = 60 * 1000 * 5;
-    const navigationCounts: { [key: number]: number } = {};
-
-    pageViews.forEach((pv) => {
-      const intervalStart =
-        Math.floor(pv.timestamp / intervalMillis) * intervalMillis;
-      navigationCounts[intervalStart] =
-        (navigationCounts[intervalStart] || 0) + 1;
-    });
-
-    return Object.entries(navigationCounts)
-      .map(([time, count]) => ({ time: parseInt(time), count }))
-      .sort((a, b) => a.time - b.time);
-  }, [getSourceLogsForStats]);
-
-  const componentPerformance = useMemo((): ComponentPerformanceData => {
-    const sourceLogs = getSourceLogsForStats();
-    const componentRenders = sourceLogs.filter(
-      (log) => log.type === LogEntryType.COMPONENT_RENDER
-    ) as ComponentRenderLog[];
-    const stats: { [name: string]: { count: number; totalDuration: number } } =
-      {};
-
-    componentRenders.forEach((log) => {
-      if (!stats[log.data.componentName]) {
-        stats[log.data.componentName] = { count: 0, totalDuration: 0 };
-      }
-      stats[log.data.componentName].count++;
-      stats[log.data.componentName].totalDuration += log.data.duration;
-    });
-
-    const processedStats: ComponentPerfStats[] = Object.entries(stats).map(
-      ([name, data]) => ({
-        name,
-        count: data.count,
-        totalDuration: data.totalDuration,
-        avgDuration: data.count > 0 ? data.totalDuration / data.count : 0,
-      })
-    );
-
-    return {
-      byFrequency: [...processedStats]
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5),
-      byAvgDuration: [...processedStats]
-        .sort((a, b) => b.avgDuration - a.avgDuration)
-        .slice(0, 5),
-    };
-  }, [getSourceLogsForStats]);
-
-  const renderStatCard = (
-    title: string,
-    value: number | string,
-    icon: React.ReactNode
-  ) => (
-    <div
-      className="card"
-      style={{
-        padding: "1rem",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.75rem",
-      }}
-    >
-      <div
-        style={{
-          padding: "0.5rem",
-          borderRadius: "9999px" /* full */,
-          backgroundColor: document.documentElement.classList.contains("dark")
-            ? "rgba(96, 165, 250, 0.2)"
-            : "rgba(59, 130, 246, 0.2)",
-          color: document.documentElement.classList.contains("dark")
-            ? "var(--brand-primary-dark)"
-            : "var(--brand-primary-light)",
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <p
-          style={{ fontSize: "0.875rem", color: "var(--text-secondary-light)" }}
-          className="dark-text-secondary"
-        >
-          {title}
-        </p>
-        <p
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "var(--text-primary-light)",
-          }}
-          className="dark-text-primary"
-        >
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-
-  const formatDuration = (ms?: number): string => {
-    if (ms === undefined) return "Ongoing";
-    if (ms < 0) return "N/A";
-    if (ms < 1000) return `${ms.toFixed(0)}ms`;
-    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-    return `${(ms / 60000).toFixed(1)}m`;
-  };
-
-  const handlePageInsightClick = (path: string) => {
-    if (selectedPagePath === path) {
-      setSelectedPagePath(null);
-      setSelectedVisit(null);
-    } else {
-      setSelectedPagePath(path);
-      setSelectedVisit(null);
-    }
-  };
-
-  const handlePageVisitClick = (visit: PageVisit) => {
-    if (selectedVisit && selectedVisit.startTime === visit.startTime) {
-      setSelectedVisit(null);
-    } else {
-      setSelectedVisit(visit);
-    }
-  };
-
-  // Inline styles for complex elements
-  const headerStyle: React.CSSProperties = {
-    marginBottom: "1.5rem",
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "1rem",
-  };
-  const headerTitleStyle: React.CSSProperties = {
-    fontSize: "1.875rem",
-    fontWeight: 700,
-    color: "var(--brand-secondary-light)",
-  };
-  const darkHeaderTitleStyle: React.CSSProperties = {
-    color: "var(--brand-secondary-dark)",
-  };
-  const controlsContainerStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  };
-  const iconStyle = { width: "1.5rem", height: "1.5rem" }; // for header buttons
-
-  const sectionTitleStyle: React.CSSProperties = {
-    fontSize: "1.25rem",
-    fontWeight: 600,
-    display: "flex",
-    alignItems: "center",
-  };
-  const sectionIconStyle = {
-    width: "1.5rem",
-    height: "1.5rem",
-    marginRight: "0.5rem",
-    color: "var(--brand-primary-light)",
-  };
-  const darkSectionIconStyle = { color: "var(--brand-primary-dark)" };
-
-  const gridStyle: React.CSSProperties = { display: "grid", gap: "1rem" };
-  // Responsive grid columns (example)
-  const twoColGridStyle: React.CSSProperties = {
-    ...gridStyle,
-    gridTemplateColumns: "repeat(1, minmax(0, 1fr))",
-  };
-  if (typeof window !== "undefined" && window.innerWidth >= 1024) {
-    // lg breakpoint
-    twoColGridStyle.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
-  }
-  const summaryGridStyle: React.CSSProperties = {
-    ...gridStyle,
-    gridTemplateColumns: "repeat(1, minmax(0, 1fr))",
-  };
-  if (typeof window !== "undefined" && window.innerWidth >= 640) {
-    // sm breakpoint
-    summaryGridStyle.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
-  }
-  if (typeof window !== "undefined" && window.innerWidth >= 1024) {
-    // lg breakpoint
-    summaryGridStyle.gridTemplateColumns = "repeat(5, minmax(0, 1fr))";
-  }
-
-  const ulStyle: React.CSSProperties = {
-    listStyle: "none",
-    padding: 0,
-    margin: 0,
-    borderTop: "1px solid var(--border-light)",
-  };
-  const darkUlStyle: React.CSSProperties = {
-    borderTopColor: "var(--border-dark)",
-  };
-
-  return (
-    <div
-      style={{ padding: "1rem", minHeight: "100vh" }}
-      className="dashboard-container"
-    >
-      {/* Dynamic CSS for dark mode text etc. */}
-      <style>{`
-        html.dark .dark-text-primary { color: var(--text-primary-dark); }
-        html.dark .dark-text-secondary { color: var(--text-secondary-dark); }
-        html.dark .dark-border { border-color: var(--border-dark); }
-        html.dark .dark-bg-surface-medium { background-color: var(--surface-medium-dark); }
-        html.dark .dark-error-text { color: var(--error-dark) !important; }
-        html.dark .dark-success-text { color: var(--success-dark) !important; }
-        html.dark .dark-brand-primary-text { color: var(--brand-primary-dark) !important; }
-
-        .dashboard-container { padding: clamp(1rem, 5vw, 2rem); }
-        .page-insight-item:hover { background-color: ${
-          currentTheme === "dark" ? "rgba(55, 65, 81, 0.7)" : "#f0f4f8"
-        }; }
-        .page-insight-item.selected { 
-            background-color: ${
-              currentTheme === "dark"
-                ? "rgba(96, 165, 250, 0.1)"
-                : "rgba(59, 130, 246, 0.1)"
-            };
-            border-left: 4px solid ${
-              currentTheme === "dark"
-                ? "var(--brand-primary-dark)"
-                : "var(--brand-primary-light)"
-            };
-        }
-        .page-insight-item.selected .page-insight-path {
-             color: ${
-               currentTheme === "dark"
-                 ? "var(--brand-primary-dark)"
-                 : "var(--brand-primary-light)"
-             };
-             font-weight: 600;
-        }
-        .log-list-container { max-height: 600px; overflow-y: auto; }
-        .page-insights-list { max-height: 300px; overflow-y: auto; }
-         @media (min-width: 768px) { /* md */
-            .dashboard-container { padding: 1.5rem; }
-            .comp-perf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; /* for border effect */ background-color: var(--border-light); }
-            html.dark .comp-perf-grid { background-color: var(--border-dark); }
-            .comp-perf-grid > div { background-color: var(--surface-elevated-light); padding: 1rem;}
-            html.dark .comp-perf-grid > div { background-color: var(--surface-elevated-dark); }
-         }
-         @media (min-width: 1024px) { /* lg */
-            .dashboard-container { padding: 2rem; }
-         }
-      `}</style>
-      <header style={headerStyle}>
-        <h1
-          style={Object.assign(
-            {},
-            headerTitleStyle,
-            currentTheme === "dark" ? darkHeaderTitleStyle : {}
-          )}
-        >
-          Monitoring Dashboard
-        </h1>
-        <div style={controlsContainerStyle}>
-          <button
-            onClick={toggleMonitoring}
-            className="btn-icon"
-            title={isMonitoringActive ? "Pause Monitoring" : "Start Monitoring"}
-          >
-            {isMonitoringActive ? (
-              <PauseIcon
-                style={{ ...iconStyle, color: "var(--error-light)" }}
-                className="dark-error-text"
-              />
-            ) : (
-              <PlayIcon
-                style={{ ...iconStyle, color: "var(--success-light)" }}
-                className="dark-success-text"
-              />
-            )}
-          </button>
-          <button
-            onClick={toggleTheme}
-            className="btn-icon"
-            title={`Switch to ${
-              currentTheme === "light" ? "Dark" : "Light"
-            } Mode`}
-          >
-            {currentTheme === "light" ? (
-              <MoonIcon style={iconStyle} />
-            ) : (
-              <SunIcon style={iconStyle} />
-            )}
-          </button>
-          <button
-            onClick={handleClearLogs}
-            className="btn-icon"
-            title="Clear All Logs"
-          >
-            <TrashIcon style={iconStyle} />
-          </button>
-          <button
-            onClick={downloadLogs}
-            className="btn-icon"
-            title="Download Logs"
-          >
-            <DownloadIcon style={iconStyle} />
-          </button>
-        </div>
-      </header>
-
-      {dbError && (
-        <div
-          style={{
-            marginBottom: "1rem",
-            padding: "0.75rem",
-            backgroundColor:
-              currentTheme === "dark" ? "rgba(239,68,68,0.2)" : "#FECACA",
-            border: `1px solid ${
-              currentTheme === "dark"
-                ? "var(--error-dark)"
-                : "var(--error-light)"
+  return React.createElement(
+    "div",
+    {
+      className: `unified-dashboard ${currentTheme === "dark" ? "dark" : ""}`,
+    },
+    // Header
+    React.createElement(
+      "div",
+      { className: "header" },
+      React.createElement(
+        "div",
+        { className: "header-content" },
+        React.createElement(
+          "div",
+          { className: "header-title" },
+          React.createElement("div", {
+            className: `status-dot ${
+              isMonitoringActive ? "active" : "inactive"
             }`,
-            color:
-              currentTheme === "dark"
-                ? "var(--error-dark)"
-                : "var(--error-light)",
-            borderRadius: "0.375rem",
-          }}
-        >
-          {dbError}
-        </div>
-      )}
+          }),
+          React.createElement("h1", { className: "title" }, "Performance Hub")
+        ),
+        React.createElement(
+          "div",
+          { className: "flex gap-2" },
+          React.createElement(
+            "button",
+            {
+              onClick: toggleMonitoring,
+              className: "icon-btn",
+              title: isMonitoringActive
+                ? "Pause Monitoring"
+                : "Start Monitoring",
+            },
+            isMonitoringActive
+              ? React.createElement(Pause, {
+                  style: {
+                    width: "1.25rem",
+                    height: "1.25rem",
+                    color: "#ef4444",
+                  },
+                })
+              : React.createElement(Play, {
+                  style: {
+                    width: "1.25rem",
+                    height: "1.25rem",
+                    color: "#10b981",
+                  },
+                })
+          ),
+          React.createElement(
+            "button",
+            {
+              onClick: toggleTheme,
+              className: "icon-btn",
+            },
+            currentTheme === "light"
+              ? React.createElement(Moon, {
+                  style: { width: "1.25rem", height: "1.25rem" },
+                })
+              : React.createElement(Sun, {
+                  style: { width: "1.25rem", height: "1.25rem" },
+                })
+          )
+        )
+      ),
 
-      <div style={{ marginBottom: "1.5rem" }}>
-        {(selectedPagePath || selectedVisit) && (
-          <div
-            style={{
-              marginBottom: "0.5rem",
-              fontSize: "0.875rem",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            <span>
-              Showing stats for:{" "}
-              <strong
-                style={{ color: "var(--text-primary-light)" }}
-                className="dark-text-primary"
-              >
-                {selectedVisit
-                  ? `${selectedPagePath} (Visit at ${new Date(
-                      selectedVisit.startTime
-                    ).toLocaleTimeString()})`
-                  : selectedPagePath}
-              </strong>
-            </span>
-          </div>
-        )}
-        <div style={summaryGridStyle}>
-          {renderStatCard(
-            "Page Views",
-            summaryStats.pageViews,
-            <EyeIcon style={{ width: "1.25rem", height: "1.25rem" }} />
-          )}
-          {renderStatCard(
-            "API Calls",
-            summaryStats.apiCalls,
-            <CodeBracketIcon style={{ width: "1.25rem", height: "1.25rem" }} />
-          )}
-          {renderStatCard(
-            "Errors",
-            summaryStats.errors,
-            <AlertTriangleIcon
-              style={{ width: "1.25rem", height: "1.25rem" }}
-            />
-          )}
-          {renderStatCard(
-            "Components",
-            summaryStats.componentRenders,
-            <InfoIcon style={{ width: "1.25rem", height: "1.25rem" }} />
-          )}
-          {renderStatCard(
-            "Custom Events",
-            summaryStats.customEvents,
-            <TagIcon style={{ width: "1.25rem", height: "1.25rem" }} />
-          )}
-        </div>
-      </div>
+      // Tab Navigation
+      React.createElement(
+        "div",
+        { className: "tab-nav" },
+        React.createElement(
+          "button",
+          {
+            onClick: () => setActiveView("monitoring"),
+            className: `tab ${activeView === "monitoring" ? "active" : ""}`,
+          },
+          React.createElement(
+            "div",
+            { className: "tab-content" },
+            React.createElement(Activity, {
+              style: { width: "1rem", height: "1rem" },
+            }),
+            React.createElement("span", null, "Monitor"),
+            React.createElement(
+              "span",
+              { className: "hide-mobile" },
+              `(${logs.length})`
+            )
+          ),
+          activeView === "monitoring" &&
+            React.createElement("div", { className: "tab-indicator" })
+        ),
+        React.createElement(
+          "button",
+          {
+            onClick: () => setActiveView("testing"),
+            className: `tab ${activeView === "testing" ? "active" : ""}`,
+          },
+          React.createElement(
+            "div",
+            { className: "tab-content" },
+            React.createElement(Zap, {
+              style: { width: "1rem", height: "1rem" },
+            }),
+            React.createElement("span", null, "Test"),
+            React.createElement(
+              "span",
+              { className: "hide-mobile" },
+              `(${testRequests.length})`
+            )
+          ),
+          activeView === "testing" &&
+            React.createElement("div", { className: "tab-indicator" })
+        )
+      )
+    ),
 
-      <div
-        style={Object.assign({}, twoColGridStyle, { marginBottom: "1.5rem" })}
-      >
-        <SimpleLineChart
-          data={pageNavigationData}
-          title={`Page Navigation ${
-            selectedVisit
-              ? `during visit`
-              : selectedPagePath
-              ? `on ${selectedPagePath.substring(0, 15)}...`
-              : "Over Time"
-          }`}
-          color={
-            currentTheme === "dark"
-              ? "var(--brand-primary-dark)"
-              : "var(--brand-primary-light)"
-          }
-        />
-        <SimpleBarChart
-          data={apiDurationData}
-          title={`Avg. API Duration ${
-            selectedVisit
-              ? `during visit`
-              : selectedPagePath
-              ? `on ${selectedPagePath.substring(0, 15)}...`
-              : ""
-          } (Top 5)`}
-          color={
-            currentTheme === "dark"
-              ? "var(--brand-primary-dark)"
-              : "var(--brand-primary-light)"
-          }
-        />
-      </div>
-
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <div
-          style={{
-            padding: "1rem",
-            borderBottom: `1px solid ${
-              currentTheme === "dark"
-                ? "var(--border-dark)"
-                : "var(--border-light)"
-            }`,
-          }}
-        >
-          <h2 style={sectionTitleStyle}>
-            <SimpleCpuChipIcon
-              style={Object.assign(
-                {},
-                sectionIconStyle,
-                currentTheme === "dark" ? darkSectionIconStyle : {}
-              )}
-            />
-            Component Performance Highlights
-          </h2>
-        </div>
-        {isLoading &&
-        componentPerformance.byFrequency.length === 0 &&
-        componentPerformance.byAvgDuration.length === 0 ? (
-          <p
-            style={{
-              padding: "1rem",
-              textAlign: "center",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            Loading component performance...
-          </p>
-        ) : componentPerformance.byFrequency.length === 0 &&
-          componentPerformance.byAvgDuration.length === 0 ? (
-          <p
-            style={{
-              padding: "1rem",
-              textAlign: "center",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            No component render data available{" "}
-            {selectedPagePath || selectedVisit ? "for this selection" : ""}.
-          </p>
-        ) : (
-          <div className="comp-perf-grid">
-            <div>
-              <h3
-                style={{
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Top 5 by Render Count
-              </h3>
-              {componentPerformance.byFrequency.length > 0 ? (
-                <ul
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    margin: 0,
-                    fontSize: "0.875rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  {componentPerformance.byFrequency.map((c) => (
-                    <li
-                      key={c.name}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          paddingRight: "0.5rem",
-                        }}
-                        title={c.name}
-                      >
-                        {c.name}
-                      </span>
-                      <span style={{ fontWeight: 500 }}>{c.count} renders</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--text-secondary-light)",
-                  }}
-                  className="dark-text-secondary"
-                >
-                  None
-                </p>
-              )}
-            </div>
-            <div>
-              <h3
-                style={{
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Top 5 by Avg. Duration
-              </h3>
-              {componentPerformance.byAvgDuration.length > 0 ? (
-                <ul
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    margin: 0,
-                    fontSize: "0.875rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  {componentPerformance.byAvgDuration.map((c) => (
-                    <li
-                      key={c.name}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          paddingRight: "0.5rem",
-                        }}
-                        title={c.name}
-                      >
-                        {c.name}
-                      </span>
-                      <span style={{ fontWeight: 500 }}>
-                        {formatDuration(c.avgDuration)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--text-secondary-light)",
-                  }}
-                  className="dark-text-secondary"
-                >
-                  None
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <div
-          style={{
-            padding: "1rem",
-            borderBottom: `1px solid ${
-              currentTheme === "dark"
-                ? "var(--border-dark)"
-                : "var(--border-light)"
-            }`,
-          }}
-        >
-          <h2 style={sectionTitleStyle}>
-            <ListBulletIcon
-              style={Object.assign(
-                {},
-                sectionIconStyle,
-                currentTheme === "dark" ? darkSectionIconStyle : {}
-              )}
-            />
-            Page Insights
-          </h2>
-        </div>
-        {isLoading && pageInsights.length === 0 ? (
-          <p
-            style={{
-              padding: "1.5rem",
-              textAlign: "center",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            Loading page insights...
-          </p>
-        ) : pageInsights.length === 0 ? (
-          <p
-            style={{
-              padding: "1.5rem",
-              textAlign: "center",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            No page view data yet to generate insights.
-          </p>
-        ) : (
-          <ul
-            className="page-insights-list"
-            style={Object.assign(
-              {},
-              ulStyle,
-              currentTheme === "dark" ? darkUlStyle : {}
-            )}
-          >
-            {pageInsights.map((insight) => (
-              <li
-                key={insight.path}
-                className={`page-insight-item ${
-                  selectedPagePath === insight.path ? "selected" : ""
-                }`}
-                style={{
-                  padding: "1rem",
-                  transition: "background-color 0.15s ease-in-out",
-                  cursor: "pointer",
-                }}
-                onClick={() => handlePageInsightClick(insight.path)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && handlePageInsightClick(insight.path)
-                }
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <span
-                      className="page-insight-path"
-                      style={{
-                        fontSize: "1.125rem",
-                        fontWeight: 500,
-                        color: "var(--text-primary-light)",
-                      }}
-                    >
-                      {insight.path}
-                    </span>
-                    <p
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "var(--text-secondary-light)",
-                      }}
-                      className="dark-text-secondary"
-                    >
-                      Visits: {insight.totalVisits}. Last:{" "}
-                      {new Date(insight.lastViewedAt).toLocaleTimeString()}. Avg
-                      Duration: {formatDuration(insight.avgDuration)}
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      textAlign: "right",
-                      fontSize: "0.75rem",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.125rem",
-                      minWidth: "80px",
-                    }}
-                  >
-                    <p>APIs: {insight.totalApiCallCount}</p>
-                    <p
-                      style={
-                        insight.totalErrorCount > 0
-                          ? { color: "var(--error-light)", fontWeight: 500 }
-                          : {}
-                      }
-                      className={
-                        insight.totalErrorCount > 0 ? "dark-error-text" : ""
-                      }
-                    >
-                      Errors: {insight.totalErrorCount}
-                    </p>
-                    <p>Renders: {insight.totalComponentRenderCount}</p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {selectedPagePath &&
-        pageInsights.find((p) => p.path === selectedPagePath) && (
-          <div className="card" style={{ marginBottom: "1.5rem" }}>
-            <div
-              style={{
-                padding: "1rem",
-                borderBottom: `1px solid ${
-                  currentTheme === "dark"
-                    ? "var(--border-dark)"
-                    : "var(--border-light)"
-                }`,
-              }}
-            >
-              <h2 style={sectionTitleStyle}>
-                <ClockIcon
-                  style={Object.assign(
-                    {},
-                    sectionIconStyle,
-                    currentTheme === "dark" ? darkSectionIconStyle : {}
-                  )}
-                />
-                Visits for {selectedPagePath}
-              </h2>
-            </div>
-            <ul
-              className="page-insights-list"
-              style={Object.assign(
-                {},
-                ulStyle,
-                currentTheme === "dark" ? darkUlStyle : {}
-              )}
-            >
-              {(
-                pageInsights.find((p) => p.path === selectedPagePath)?.visits ||
-                []
+    React.createElement(
+      "div",
+      { className: "container" },
+      activeView === "monitoring"
+        ? [
+            // Monitoring View
+            // Summary Stats
+            React.createElement(
+              "div",
+              { key: "stats", className: "grid grid-5 mb-6" },
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        padding: "0.5rem",
+                        backgroundColor: "var(--primary-50)",
+                        borderRadius: "50%",
+                      },
+                    },
+                    React.createElement(Eye, {
+                      style: {
+                        width: "1.25rem",
+                        height: "1.25rem",
+                        color: "var(--primary-600)",
+                      },
+                    })
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value" },
+                  summaryStats.pageViews
+                ),
+                React.createElement("div", { className: "stat-label" }, "Pages")
+              ),
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        padding: "0.5rem",
+                        backgroundColor: "#dcfce7",
+                        borderRadius: "50%",
+                      },
+                    },
+                    React.createElement(Code, {
+                      style: {
+                        width: "1.25rem",
+                        height: "1.25rem",
+                        color: "var(--success-600)",
+                      },
+                    })
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value" },
+                  summaryStats.apiCalls
+                ),
+                React.createElement("div", { className: "stat-label" }, "APIs")
+              ),
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        padding: "0.5rem",
+                        backgroundColor: "#fee2e2",
+                        borderRadius: "50%",
+                      },
+                    },
+                    React.createElement(AlertTriangle, {
+                      style: {
+                        width: "1.25rem",
+                        height: "1.25rem",
+                        color: "var(--error-600)",
+                      },
+                    })
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value" },
+                  summaryStats.errors
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-label" },
+                  "Errors"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        padding: "0.5rem",
+                        backgroundColor: "#e0e7ff",
+                        borderRadius: "50%",
+                      },
+                    },
+                    React.createElement(Cpu, {
+                      style: {
+                        width: "1.25rem",
+                        height: "1.25rem",
+                        color: "var(--purple-600)",
+                      },
+                    })
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value" },
+                  summaryStats.componentRenders
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-label" },
+                  "Renders"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        padding: "0.5rem",
+                        backgroundColor: "#fef3c7",
+                        borderRadius: "50%",
+                      },
+                    },
+                    React.createElement(Tag, {
+                      style: {
+                        width: "1.25rem",
+                        height: "1.25rem",
+                        color: "var(--warning-600)",
+                      },
+                    })
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value" },
+                  summaryStats.customEvents
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-label" },
+                  "Events"
+                )
               )
-                .sort((a, b) => b.startTime - a.startTime)
-                .map((visit) => {
-                  const visitApiCount = logs.filter(
-                    (l) =>
-                      visit.logIds.includes(l.id) &&
-                      l.type === LogEntryType.API_CALL
-                  ).length;
-                  const visitErrorCount = logs.filter(
-                    (l) =>
-                      visit.logIds.includes(l.id) &&
-                      l.type === LogEntryType.ERROR
-                  ).length;
-                  return (
-                    <li
-                      key={visit.startTime}
-                      className={`page-insight-item ${
-                        selectedVisit?.startTime === visit.startTime
-                          ? "selected"
-                          : ""
-                      }`}
-                      style={{
-                        padding: "1rem",
-                        transition: "background-color 0.15s ease-in-out",
-                        cursor: "pointer",
-                      }}
-                      onClick={() => handlePageVisitClick(visit)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handlePageVisitClick(visit)
-                      }
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <div>
-                          <span
-                            className="page-insight-path"
-                            style={{
-                              fontWeight: 500,
-                              color: "var(--text-primary-light)",
-                            }}
-                          >
-                            Visit at{" "}
-                            {new Date(visit.startTime).toLocaleTimeString()}
-                          </span>
-                          <p
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "var(--text-secondary-light)",
-                            }}
-                            className="dark-text-secondary"
-                          >
-                            Duration: {formatDuration(visit.duration)}
-                          </p>
-                        </div>
-                        <div
-                          style={{
-                            textAlign: "right",
-                            fontSize: "0.75rem",
+            ),
+
+            // Timeline Chart
+            React.createElement(TimelineChart, { key: "timeline", logs: logs }),
+
+            // Page Insights
+            pageInsights.length > 0 &&
+              React.createElement(
+                "div",
+                { key: "insights", className: "card" },
+                React.createElement(
+                  "div",
+                  { className: "card-header" },
+                  React.createElement(
+                    "h2",
+                    { className: "card-title" },
+                    React.createElement(List, {
+                      style: { width: "1.25rem", height: "1.25rem" },
+                    }),
+                    "Page Performance Insights"
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { style: { maxHeight: "16rem", overflowY: "auto" } },
+                  pageInsights.map((insight) =>
+                    React.createElement(
+                      "div",
+                      {
+                        key: insight.path,
+                        className: `list-item ${
+                          selectedPagePath === insight.path ? "selected" : ""
+                        }`,
+                        style: { cursor: "pointer" },
+                        onClick: () =>
+                          setSelectedPagePath(
+                            selectedPagePath === insight.path
+                              ? null
+                              : insight.path
+                          ),
+                      },
+                      React.createElement(
+                        "div",
+                        { className: "flex-between", style: { gap: "1rem" } },
+                        React.createElement(
+                          "div",
+                          { style: { flex: 1, minWidth: 0 } },
+                          React.createElement(
+                            "span",
+                            {
+                              className: `font-medium truncate ${
+                                selectedPagePath === insight.path
+                                  ? "text-blue"
+                                  : ""
+                              }`,
+                              style: { display: "block" },
+                            },
+                            insight.path
+                          ),
+                          React.createElement(
+                            "p",
+                            {
+                              className: "text-sm text-gray mt-1",
+                              style: { margin: 0 },
+                            },
+                            `${insight.totalVisits} visits • Last: ${new Date(
+                              insight.lastViewedAt
+                            ).toLocaleTimeString()}`
+                          )
+                        ),
+                        React.createElement(
+                          "div",
+                          {
+                            className: "text-right text-sm",
+                            style: { flexShrink: 0 },
+                          },
+                          React.createElement(
+                            "p",
+                            { className: "text-gray", style: { margin: 0 } },
+                            `APIs: ${insight.totalApiCallCount}`
+                          ),
+                          React.createElement(
+                            "p",
+                            {
+                              className: `mt-1 ${
+                                insight.totalErrorCount > 0
+                                  ? "text-red font-medium"
+                                  : "text-gray"
+                              }`,
+                              style: { margin: 0 },
+                            },
+                            `Errors: ${insight.totalErrorCount}`
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              ),
+
+            // Logs
+            React.createElement(
+              "div",
+              { key: "logs", className: "card" },
+              React.createElement(
+                "div",
+                { className: "card-header" },
+                React.createElement(
+                  "div",
+                  { className: "flex-between mb-4" },
+                  React.createElement(
+                    "h2",
+                    { className: "card-title", style: { margin: 0 } },
+                    React.createElement(Globe, {
+                      style: { width: "1.25rem", height: "1.25rem" },
+                    }),
+                    `Activity Logs (${filteredLogs.length})`
+                  ),
+                  selectedPagePath &&
+                    React.createElement(
+                      "button",
+                      {
+                        onClick: () => setSelectedPagePath(null),
+                        className: "btn btn-ghost",
+                      },
+                      React.createElement(ArrowLeft, {
+                        style: { width: "1rem", height: "1rem" },
+                      }),
+                      React.createElement(
+                        "span",
+                        { className: "hide-mobile" },
+                        "Back to all"
+                      )
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "flex gap-3 flex-mobile-col" },
+                  React.createElement("input", {
+                    type: "text",
+                    placeholder: "Search logs...",
+                    value: searchTerm,
+                    onChange: (e) => setSearchTerm(e.target.value),
+                    className: "input",
+                    style: { flex: 1 },
+                  }),
+                  React.createElement(
+                    "select",
+                    {
+                      value: filterType,
+                      onChange: (e) => setFilterType(e.target.value),
+                      className: "select",
+                    },
+                    React.createElement(
+                      "option",
+                      { value: "ALL" },
+                      "All Types"
+                    ),
+                    React.createElement(
+                      "option",
+                      { value: "PAGE_VIEW" },
+                      "Page Views"
+                    ),
+                    React.createElement(
+                      "option",
+                      { value: "API_CALL" },
+                      "API Calls"
+                    ),
+                    React.createElement(
+                      "option",
+                      { value: "COMPONENT_RENDER" },
+                      "Component Renders"
+                    ),
+                    React.createElement("option", { value: "ERROR" }, "Errors"),
+                    React.createElement(
+                      "option",
+                      { value: "CUSTOM_EVENT" },
+                      "Custom Events"
+                    )
+                  )
+                )
+              ),
+              React.createElement(
+                "div",
+                { style: { maxHeight: "24rem", overflowY: "auto" } },
+                filteredLogs.length === 0
+                  ? React.createElement(
+                      "div",
+                      { className: "empty-state" },
+                      React.createElement(Globe, {
+                        style: { width: "3rem", height: "3rem", opacity: 0.5 },
+                      }),
+                      React.createElement(
+                        "p",
+                        { style: { margin: 0 } },
+                        "No logs to display"
+                      ),
+                      filterType !== "ALL" &&
+                        React.createElement(
+                          "p",
+                          { className: "text-sm", style: { margin: 0 } },
+                          "Try changing the filter"
+                        )
+                    )
+                  : React.createElement(
+                      "ul",
+                      { className: "list" },
+                      filteredLogs.map((log) =>
+                        React.createElement(LogItem, { key: log.id, log: log })
+                      )
+                    )
+              )
+            ),
+          ]
+        : [
+            // API Testing View
+            // Stats
+            React.createElement(
+              "div",
+              { key: "test-stats", className: "grid grid-3 mb-6" },
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  Object.values(loadingStates).filter(Boolean).length > 0
+                    ? React.createElement(Wifi, {
+                        style: {
+                          width: "1.25rem",
+                          height: "1.25rem",
+                          color: "var(--primary-600)",
+                        },
+                      })
+                    : React.createElement(WifiOff, {
+                        style: {
+                          width: "1.25rem",
+                          height: "1.25rem",
+                          color: "var(--gray-400)",
+                        },
+                      })
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value text-blue" },
+                  Object.values(loadingStates).filter(Boolean).length
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-label" },
+                  "Active"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  React.createElement(CheckCircle, {
+                    style: {
+                      width: "1.25rem",
+                      height: "1.25rem",
+                      color: "var(--success-500)",
+                    },
+                  })
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value text-green" },
+                  stats.success
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-label" },
+                  "Success"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "stat-card" },
+                React.createElement(
+                  "div",
+                  { className: "stat-icon" },
+                  React.createElement(AlertTriangle, {
+                    style: {
+                      width: "1.25rem",
+                      height: "1.25rem",
+                      color: "var(--error-500)",
+                    },
+                  })
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-value text-red" },
+                  stats.error
+                ),
+                React.createElement(
+                  "div",
+                  { className: "stat-label" },
+                  "Failed"
+                )
+              )
+            ),
+
+            // Test Requests
+            React.createElement(
+              "div",
+              { key: "test-requests", className: "card" },
+              React.createElement(
+                "div",
+                { className: "card-header flex-between" },
+                React.createElement(
+                  "h3",
+                  { className: "card-title", style: { margin: 0 } },
+                  React.createElement(FileCode, {
+                    style: { width: "1.25rem", height: "1.25rem" },
+                  }),
+                  "API Test Requests"
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => openEditModal(),
+                    className: "btn btn-primary",
+                  },
+                  React.createElement(Plus, {
+                    style: { width: "1rem", height: "1rem" },
+                  }),
+                  React.createElement(
+                    "span",
+                    { className: "hide-mobile" },
+                    "Add Test"
+                  )
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "card-content" },
+                React.createElement(
+                  "div",
+                  { className: "grid grid-lg" },
+                  testRequests.map((request) =>
+                    React.createElement(RequestCard, {
+                      key: request.id,
+                      request: request,
+                      onEdit: openEditModal,
+                      onDelete: deleteRequest,
+                      onExecute: handleExecuteRequest,
+                      result: results[request.id],
+                      isLoading: loadingStates[request.id],
+                    })
+                  )
+                )
+              )
+            ),
+
+            // Request Log
+            requestLog.length > 0 &&
+              React.createElement(
+                "div",
+                { key: "request-log", className: "card" },
+                React.createElement(
+                  "div",
+                  { className: "card-header flex-between" },
+                  React.createElement(
+                    "h3",
+                    { className: "card-title", style: { margin: 0 } },
+                    React.createElement(Clock, {
+                      style: { width: "1.25rem", height: "1.25rem" },
+                    }),
+                    "Test Results Log"
+                  ),
+                  React.createElement(
+                    "button",
+                    {
+                      onClick: () => {
+                        setRequestLog([]);
+                        setStats({ success: 0, error: 0, total: 0 });
+                      },
+                      className: "icon-btn",
+                      "aria-label": "Clear log",
+                    },
+                    React.createElement(Trash2, {
+                      style: { width: "1rem", height: "1rem" },
+                    })
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { style: { maxHeight: "24rem", overflowY: "auto" } },
+                  requestLog.map((log, index) =>
+                    React.createElement(
+                      "div",
+                      {
+                        key: log.id,
+                        className: "list-item",
+                        style:
+                          index === 0
+                            ? { backgroundColor: "var(--primary-50)" }
+                            : {},
+                      },
+                      React.createElement(
+                        "div",
+                        {
+                          className: "flex gap-2 mb-3",
+                          style: { flexWrap: "wrap" },
+                        },
+                        React.createElement(
+                          "span",
+                          {
+                            className: `badge ${
+                              log.error ? "badge-error" : "badge-success"
+                            }`,
+                          },
+                          log.method
+                        ),
+                        React.createElement(
+                          "span",
+                          { className: "text-xs text-gray" },
+                          log.timestamp
+                        ),
+                        log.responseStatus &&
+                          React.createElement(
+                            "span",
+                            {
+                              className: `badge ${
+                                log.responseStatus >= 200 &&
+                                log.responseStatus < 300
+                                  ? "badge-success"
+                                  : "badge-error"
+                              }`,
+                            },
+                            log.responseStatus
+                          ),
+                        log.duration &&
+                          React.createElement(
+                            "span",
+                            { className: "text-xs text-gray" },
+                            `${log.duration}ms`
+                          ),
+                        log.expected &&
+                          log.responseStatus &&
+                          React.createElement(
+                            "span",
+                            {
+                              className: "text-xs",
+                              style: {
+                                color:
+                                  log.responseStatus === log.expected
+                                    ? "var(--success-500)"
+                                    : "var(--warning-500)",
+                              },
+                            },
+                            `Expected: ${log.expected}`
+                          )
+                      ),
+                      React.createElement(
+                        "div",
+                        {
+                          style: {
                             display: "flex",
                             flexDirection: "column",
-                            gap: "0.125rem",
-                            minWidth: "70px",
-                          }}
-                        >
-                          <p>APIs: {visitApiCount}</p>
-                          <p
-                            style={
-                              visitErrorCount > 0
-                                ? {
-                                    color: "var(--error-light)",
-                                    fontWeight: 500,
-                                  }
-                                : {}
-                            }
-                            className={
-                              visitErrorCount > 0 ? "dark-error-text" : ""
-                            }
-                          >
-                            Errors: {visitErrorCount}
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-            </ul>
-          </div>
-        )}
+                            gap: "0.75rem",
+                          },
+                        },
+                        React.createElement(
+                          "div",
+                          null,
+                          React.createElement(
+                            "div",
+                            { className: "text-xs font-medium text-gray mb-1" },
+                            `${log.name} - URL:`
+                          ),
+                          React.createElement(
+                            "div",
+                            { className: "code-block" },
+                            log.url
+                          )
+                        ),
+                        log.requestBody &&
+                          React.createElement(
+                            "div",
+                            null,
+                            React.createElement(
+                              "div",
+                              {
+                                className: "text-xs font-medium text-gray mb-1",
+                              },
+                              "Request Body:"
+                            ),
+                            React.createElement(
+                              "div",
+                              { className: "code-block" },
+                              JSON.stringify(log.requestBody, null, 2)
+                            )
+                          ),
+                        log.responseData &&
+                          React.createElement(
+                            "div",
+                            null,
+                            React.createElement(
+                              "div",
+                              {
+                                className: "text-xs font-medium text-gray mb-1",
+                              },
+                              "Response:"
+                            ),
+                            React.createElement(
+                              "div",
+                              { className: "code-block" },
+                              typeof log.responseData === "string"
+                                ? log.responseData
+                                : JSON.stringify(log.responseData, null, 2)
+                            )
+                          ),
+                        log.error &&
+                          React.createElement(
+                            "div",
+                            null,
+                            React.createElement(
+                              "div",
+                              {
+                                className: "text-xs font-medium mb-1 text-red",
+                              },
+                              "Error:"
+                            ),
+                            React.createElement(
+                              "div",
+                              {
+                                className: "code-block",
+                                style: {
+                                  backgroundColor: "var(--error-bg)",
+                                  color: "var(--error-600)",
+                                },
+                              },
+                              log.error
+                            )
+                          )
+                      )
+                    )
+                  )
+                )
+              ),
+          ]
+    ),
 
-      <div className="card">
-        <div
-          style={{
-            padding: "1rem",
-            borderBottom: `1px solid ${
-              currentTheme === "dark"
-                ? "var(--border-dark)"
-                : "var(--border-light)"
-            }`,
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.75rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              flexGrow: 1,
-              flexWrap: "wrap",
-              gap: "0.75rem",
-            }}
-          >
-            {(selectedPagePath || selectedVisit) && (
-              <button
-                onClick={handleBackToAll}
-                className="btn-icon"
-                style={{ marginRight: "0.75rem", padding: "0.375rem" }}
-                title="Back to all logs"
-                aria-label="Back to all logs"
-              >
-                <ArrowLeftIcon
-                  style={Object.assign(
-                    { width: "1.25rem", height: "1.25rem" },
-                    sectionIconStyle,
-                    currentTheme === "dark" ? darkSectionIconStyle : {}
-                  )}
-                />
-              </button>
-            )}
-            <h2 style={sectionTitleStyle}>
-              {selectedVisit
-                ? `Logs for visit to ${selectedPagePath?.substring(
-                    0,
-                    20
-                  )}... at ${new Date(
-                    selectedVisit.startTime
-                  ).toLocaleTimeString()}`
-                : selectedPagePath
-                ? `Logs for ${selectedPagePath.substring(0, 30)}${
-                    selectedPagePath.length > 30 ? "..." : ""
-                  }`
-                : "Activity Logs"}
-              &nbsp;({filteredLogs.length})
-            </h2>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              width: "100%",
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Search logs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="form-input"
-              style={{ flexGrow: 1, minWidth: "150px" }}
-              aria-label="Search logs"
-            />
-            <select
-              value={filterType}
-              onChange={(e) =>
-                setFilterType(e.target.value as LogEntryType | "ALL")
-              }
-              className="form-select"
-              style={{ minWidth: "120px" }}
-              aria-label="Filter logs by type"
-            >
-              <option value="ALL">All Types</option>
-              {Object.values(LogEntryType).map((type) => (
-                <option key={type} value={type}>
-                  {type.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {isLoading && logs.length === 0 && !dbError ? (
-          <p
-            style={{
-              padding: "1.5rem",
-              textAlign: "center",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            Loading logs...
-          </p>
-        ) : filteredLogs.length === 0 ? (
-          <p
-            style={{
-              padding: "1.5rem",
-              textAlign: "center",
-              color: "var(--text-secondary-light)",
-            }}
-            className="dark-text-secondary"
-          >
-            No logs to display
-            {selectedVisit
-              ? ` for this specific visit`
-              : selectedPagePath
-              ? ` for this page`
-              : ""}
-            {filterType !== "ALL"
-              ? ` with type ${filterType.replace(/_/g, " ")}`
-              : ""}
-            {searchTerm ? ` matching "${searchTerm}"` : ""}.
-            {dbError ? " There might be an issue with the log database." : ""}
-          </p>
-        ) : (
-          <ul
-            className="log-list-container"
-            style={Object.assign(
-              {},
-              ulStyle,
-              { borderTopColor: "transparent" },
-              currentTheme === "dark" ? darkUlStyle : {}
-            )}
-          >
-            {filteredLogs.map((log) => (
-              <LogItem key={log.id} log={log} />
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+    // Edit Request Modal
+    isEditModalOpen &&
+      React.createElement(
+        "div",
+        {
+          className: "modal-overlay",
+          onClick: closeEditModal,
+        },
+        React.createElement(
+          "div",
+          {
+            className: "modal-content",
+            onClick: (e) => e.stopPropagation(),
+          },
+          React.createElement(
+            "div",
+            { className: "modal-header" },
+            React.createElement(
+              "h3",
+              { className: "text-lg font-semibold", style: { margin: 0 } },
+              editingRequest ? "Edit Request" : "Add New Request"
+            ),
+            React.createElement(
+              "button",
+              {
+                onClick: closeEditModal,
+                className: "icon-btn",
+              },
+              React.createElement(X, {
+                style: { width: "1.25rem", height: "1.25rem" },
+              })
+            )
+          ),
+          React.createElement(
+            "div",
+            { className: "modal-body" },
+            React.createElement(
+              "div",
+              { className: "form-group" },
+              React.createElement(
+                "label",
+                { className: "label" },
+                "Request Name:"
+              ),
+              React.createElement("input", {
+                type: "text",
+                value: editForm.name,
+                onChange: (e) =>
+                  setEditForm((prev) => ({ ...prev, name: e.target.value })),
+                className: "input",
+                placeholder: "e.g., Get User Profile",
+              })
+            ),
+            React.createElement(
+              "div",
+              { className: "grid grid-2 gap-3" },
+              React.createElement(
+                "div",
+                { className: "form-group" },
+                React.createElement("label", { className: "label" }, "Method:"),
+                React.createElement(
+                  "select",
+                  {
+                    value: editForm.method,
+                    onChange: (e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        method: e.target.value,
+                      })),
+                    className: "select",
+                  },
+                  React.createElement("option", { value: "GET" }, "GET"),
+                  React.createElement("option", { value: "POST" }, "POST"),
+                  React.createElement("option", { value: "PUT" }, "PUT"),
+                  React.createElement("option", { value: "DELETE" }, "DELETE"),
+                  React.createElement("option", { value: "PATCH" }, "PATCH")
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "form-group" },
+                React.createElement(
+                  "label",
+                  { className: "label" },
+                  "Expected Status:"
+                ),
+                React.createElement("input", {
+                  type: "number",
+                  value: editForm.expectedStatus,
+                  onChange: (e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      expectedStatus: parseInt(e.target.value),
+                    })),
+                  className: "input",
+                  placeholder: "200",
+                })
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "form-group" },
+              React.createElement("label", { className: "label" }, "URL:"),
+              React.createElement("input", {
+                type: "text",
+                value: editForm.url,
+                onChange: (e) =>
+                  setEditForm((prev) => ({ ...prev, url: e.target.value })),
+                className: "input",
+                placeholder: "https://api.example.com/endpoint",
+              })
+            ),
+            editForm.method !== "GET" &&
+              editForm.method !== "DELETE" &&
+              React.createElement(
+                "div",
+                { className: "form-group" },
+                React.createElement(
+                  "label",
+                  { className: "label" },
+                  "Request Body (JSON):"
+                ),
+                React.createElement("textarea", {
+                  value: editForm.body,
+                  onChange: (e) =>
+                    setEditForm((prev) => ({ ...prev, body: e.target.value })),
+                  className: "textarea",
+                  placeholder: '{\n  "key": "value"\n}',
+                })
+              )
+          ),
+          React.createElement(
+            "div",
+            { className: "modal-footer" },
+            React.createElement(
+              "button",
+              {
+                onClick: closeEditModal,
+                className: "btn btn-ghost",
+              },
+              "Cancel"
+            ),
+            React.createElement(
+              "button",
+              {
+                onClick: saveRequest,
+                className: "btn btn-primary",
+              },
+              React.createElement(Settings, {
+                style: { width: "1rem", height: "1rem" },
+              }),
+              editingRequest ? "Update Request" : "Create Request"
+            )
+          )
+        )
+      )
   );
 };
+
+export default MonitoringDashboard;
