@@ -240,6 +240,32 @@ The `MonitoringDashboard` component manages its own styling and theming (light/d
     }
     ```
 
+### Exporting to Another Project
+
+If you want to maintain this monitoring tool as a separate repository and reuse
+it across multiple projects, you can package it as a small npm dependency:
+
+1.  Run `npm run build` inside this repository. This generates a `dist/` folder
+    with the compiled JavaScript files.
+2.  Create a tarball with `npm pack`. The command outputs a file like
+    `in-app-monitoring-tool-0.0.0.tgz` in the project root.
+3.  In another project, install the tarball directly:
+
+    ```bash
+    npm install ../path/to/in-app-monitoring-tool-0.0.0.tgz
+    ```
+
+    (You can also publish the tarball to a private registry and install from
+    there.)
+4.  Import the dashboard component from the package:
+
+    ```tsx
+    import { MonitoringDashboard } from 'in-app-monitoring-tool';
+    ```
+
+This workflow keeps the monitoring code isolated so you can update it
+independently of your host applications.
+
 ## Showcase / How it Works
 
 The tool is self-contained. The `MonitoringDashboard` component is the single UI entry point you need to render. The `MonitoringService` automatically:
