@@ -29,10 +29,14 @@ const TestRequestPanel: React.FC = () => {
   const sendAxiosRequest = async (method: 'GET' | 'POST') => {
     const baseUrl = 'https://jsonplaceholder.typicode.com/posts';
     const url = method === 'GET' ? `${baseUrl}/1` : baseUrl;
-    if (method === 'GET') {
-      await axios.get(url);
-    } else {
-      await axios.post(url, { title: 'foo', body: 'bar', userId: 1 });
+    try {
+      if (method === 'GET') {
+        await axios.get(url);
+      } else {
+        await axios.post(url, { title: 'foo', body: 'bar', userId: 1 });
+      }
+    } catch (err: any) {
+      console.warn('Axios request failed', err);
     }
   };
 
