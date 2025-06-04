@@ -14,6 +14,7 @@ import './components/SimpleBarChart.test';
 import './components/SimpleLineChart.test';
 import './components/MonitoringDashboard.test';
 import './components/TestRequestPanel.test';
+import './store/index.test';
 
 async function main() {
   try {
