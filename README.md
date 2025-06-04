@@ -242,6 +242,35 @@ The `MonitoringDashboard` component manages its own styling and theming (light/d
 
 ### Exporting to Another Project
 
+You can either copy the source files directly or package the tool as a small npm
+dependency.
+
+#### 1. Manual copy
+
+Run `npm run prepare-export`. This command collects all the relevant source
+files (`components/`, `services/`, `hooks/`, `utils/`, `constants.ts`, and
+`types.ts`) into a new `export/` folder.
+
+Copy that folder into your other project's source directory:
+
+```bash
+cp -r export/ your-other-project/src/monitoring-tool
+```
+
+Import the dashboard component using a relative path:
+
+```tsx
+import { MonitoringDashboard } from './monitoring-tool/components/MonitoringDashboard';
+```
+
+#### 2. Package as an npm dependency
+
+1.  Run `npm run build` to generate a `dist/` folder with compiled JavaScript
+    files.
+2.  Create a tarball with `npm pack`. The command outputs a file such as
+    `in-app-monitoring-tool-0.0.0.tgz` in the project root.
+3.  In your other project, install the tarball:
+
 If you want to maintain this monitoring tool as a separate repository and reuse
 it across multiple projects, you can package it as a small npm dependency:
 
@@ -250,6 +279,7 @@ it across multiple projects, you can package it as a small npm dependency:
 2.  Create a tarball with `npm pack`. The command outputs a file like
     `in-app-monitoring-tool-0.0.0.tgz` in the project root.
 3.  In another project, install the tarball directly:
+
 
     ```bash
     npm install ../path/to/in-app-monitoring-tool-0.0.0.tgz
@@ -263,12 +293,6 @@ it across multiple projects, you can package it as a small npm dependency:
     import { MonitoringDashboard } from 'in-app-monitoring-tool';
     ```
 
-This workflow keeps the monitoring code isolated so you can update it
-independently of your host applications.
-
-If you prefer the original approach of manually copying the source files into
-your project, that method still works as described in the **Installation**
-section above.
 
 ## Showcase / How it Works
 
