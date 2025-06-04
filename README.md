@@ -349,3 +349,7 @@ The entire UI is responsive and adapts to light/dark themes based on the `theme`
 *   **Extending**: New log types or data visualizations can be added by extending `types.ts`, `MonitoringService.ts`, and `MonitoringDashboard.tsx`.
 
 This tool provides a solid foundation for in-app monitoring and can be extended further based on specific project needs.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
