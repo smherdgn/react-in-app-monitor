@@ -266,6 +266,10 @@ it across multiple projects, you can package it as a small npm dependency:
 This workflow keeps the monitoring code isolated so you can update it
 independently of your host applications.
 
+If you prefer the original approach of manually copying the source files into
+your project, that method still works as described in the **Installation**
+section above.
+
 ## Showcase / How it Works
 
 The tool is self-contained. The `MonitoringDashboard` component is the single UI entry point you need to render. The `MonitoringService` automatically:
