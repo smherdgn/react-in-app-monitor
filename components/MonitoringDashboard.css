@@ -203,3 +203,37 @@ html.dark .icon-custom-event {
 html.dark .icon-default {
   color: var(--text-secondary-dark);
 }
+
+/* Test Requests modal styles */
+.test-requests-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.test-requests-container {
+  background-color: var(--surface-elevated-light);
+  color: var(--text-primary-light);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  width: 90%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+html.dark .test-requests-container {
+  background-color: var(--surface-elevated-dark);
+  color: var(--text-primary-dark);
+}
+
+.test-request-btn {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}

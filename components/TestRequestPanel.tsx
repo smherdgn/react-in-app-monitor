@@ -58,17 +58,17 @@ const TestRequestPanel: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-      <button onClick={() => sendRequest('GET')}>Send GET Request</button>
-      <button onClick={() => sendRequest('POST')}>Send POST Request</button>
-      <button onClick={() => sendAxiosRequest('GET')}>Axios GET</button>
-      <button onClick={() => sendAxiosRequest('POST')}>Axios POST</button>
-      <button onClick={() => sendThunkRequest('GET')}>Thunk GET</button>
-      <button onClick={() => sendThunkRequest('POST')}>Thunk POST</button>
-      <button onClick={() => sendAxiosThunkRequest('GET')}>Axios Thunk GET</button>
-      <button onClick={() => sendAxiosThunkRequest('POST')}>Axios Thunk POST</button>
-      <button onClick={() => sendRequest('PUT')}>Send PUT Request</button>
-      <button onClick={() => sendRequest('DELETE')}>Send DELETE Request</button>
-      <button onClick={triggerError}>Trigger Error</button>
+      <button className="btn test-request-btn" onClick={() => sendRequest('GET')}>Send GET Request</button>
+      <button className="btn test-request-btn" onClick={() => sendRequest('POST')}>Send POST Request</button>
+      <button className="btn test-request-btn" onClick={() => sendAxiosRequest('GET')}>Axios GET</button>
+      <button className="btn test-request-btn" onClick={() => sendAxiosRequest('POST')}>Axios POST</button>
+      <button className="btn test-request-btn" onClick={() => sendThunkRequest('GET')}>Thunk GET</button>
+      <button className="btn test-request-btn" onClick={() => sendThunkRequest('POST')}>Thunk POST</button>
+      <button className="btn test-request-btn" onClick={() => sendAxiosThunkRequest('GET')}>Axios Thunk GET</button>
+      <button className="btn test-request-btn" onClick={() => sendAxiosThunkRequest('POST')}>Axios Thunk POST</button>
+      <button className="btn test-request-btn" onClick={() => sendRequest('PUT')}>Send PUT Request</button>
+      <button className="btn test-request-btn" onClick={() => sendRequest('DELETE')}>Send DELETE Request</button>
+      <button className="btn test-request-btn" onClick={triggerError}>Trigger Error</button>
     </div>
   );
 };

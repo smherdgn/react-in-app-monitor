@@ -4,10 +4,14 @@ import { Link } from 'react-router-dom';
 
 const TestRequestsPage: React.FC = () => {
   return (
-    <div style={{ padding: '1rem' }}>
-      <h2>Test Requests</h2>
-      <TestRequestPanel />
-      <Link to="/">Back to Dashboard</Link>
+    <div className="test-requests-overlay">
+      <div className="test-requests-container">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0 }}>Test Requests</h2>
+          <Link to="/" className="btn">Close</Link>
+        </div>
+        <TestRequestPanel />
+      </div>
     </div>
   );
 };
