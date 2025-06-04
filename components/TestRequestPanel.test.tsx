@@ -35,6 +35,7 @@ describe('TestRequestPanel', () => {
   it('should throw an error when Trigger Error button clicked', () => {
     const panel = TestRequestPanel() as React.ReactElement;
     const buttons = React.Children.toArray((panel.props as {children: React.ReactNode}).children) as React.ReactElement[];
-    expect(() => buttons[4].props.onClick()).toThrow('Test error from TestRequestPanel');
+    const errorButton = buttons[buttons.length - 1];
+    expect(() => errorButton.props.onClick()).toThrow('Test error from TestRequestPanel');
   });
 });
