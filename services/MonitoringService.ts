@@ -14,6 +14,8 @@ class MonitoringServiceImpl {
   private dbPromise: Promise<IDBDatabase>;
   public isRunning: boolean = true;
   private originalFetch: typeof window.fetch;
+  private originalXHROpen?: typeof XMLHttpRequest.prototype.open;
+  private originalXHRSend?: typeof XMLHttpRequest.prototype.send;
   private originalPushState: typeof window.history.pushState;
   private originalReplaceState: typeof window.history.replaceState;
   private currentPath: string =
@@ -43,6 +45,7 @@ class MonitoringServiceImpl {
     if (typeof window !== "undefined") {
       this.initializeGlobalErrorHandlers();
       this.initializeFetchOverride();
+      this.initializeXMLHttpRequestOverride();
       this.initializeRouteTracking();
       // Initial page view
       this.logPageView(this.currentPath);
@@ -306,6 +309,120 @@ class MonitoringServiceImpl {
         );
       }
     }
+  }
+
+  private initializeXMLHttpRequestOverride(): void {
+    if (typeof XMLHttpRequest === "undefined") {
+      console.warn(
+        "MonitoringService: XMLHttpRequest not available. XHR calls will not be monitored."
+      );
+      return;
+    }
+
+    this.originalXHROpen = XMLHttpRequest.prototype.open;
+    this.originalXHRSend = XMLHttpRequest.prototype.send;
+
+    const service = this;
+
+    XMLHttpRequest.prototype.open = function (
+      method: string,
+      url: string,
+      async?: boolean,
+      user?: string | null,
+      password?: string | null
+    ) {
+      (this as any)._monitoringMethod = method;
+      (this as any)._monitoringUrl = url;
+      return service.originalXHROpen!.apply(this, arguments as any);
+    };
+
+    XMLHttpRequest.prototype.send = function (body?: Document | BodyInit | null) {
+      if (!service.isRunning) {
+        return service.originalXHRSend!.apply(this, arguments as any);
+      }
+
+      const startTime = performance.now();
+      const method = (this as any)._monitoringMethod || "GET";
+      const url = (this as any)._monitoringUrl || "";
+
+      let requestBody: string | undefined;
+      if (body) {
+        if (typeof body === "string") {
+          requestBody = body;
+        } else if (body instanceof URLSearchParams) {
+          requestBody = body.toString();
+        } else if (body instanceof FormData) {
+          requestBody = "[FormData body]";
+        } else if (body instanceof Blob || body instanceof ArrayBuffer) {
+          requestBody = `[Binary body: ${body.constructor.name}]`;
+        } else {
+          requestBody = `[Non-string body: ${Object.prototype.toString.call(body)}]`;
+        }
+      }
+
+      const xhr = this as XMLHttpRequest;
+      const onLoadEnd = () => {
+        xhr.removeEventListener("loadend", onLoadEnd);
+        const duration = performance.now() - startTime;
+        let responseBody: string | undefined;
+        try {
+          const contentType = xhr.getResponseHeader("content-type");
+          if (
+            contentType &&
+            (contentType.includes("application/json") ||
+              contentType.includes("text/"))
+          ) {
+            responseBody = xhr.responseText;
+          } else if ((xhr as any).response) {
+            responseBody = `[Response body of type: ${contentType || "unknown"}]`;
+          } else {
+            responseBody = "[Empty or non-text response body]";
+          }
+        } catch (e) {
+          responseBody = `[Error reading response body: ${(e as Error).message}]`;
+        }
+
+        service.logApiCall({
+          url: service.stripUrlParams(url),
+          method,
+          duration,
+          statusCode: xhr.status,
+          requestBody,
+          responseBody,
+        });
+      };
+
+      xhr.addEventListener("loadend", onLoadEnd);
+
+      try {
+        return service.originalXHRSend!.apply(this, arguments as any);
+      } catch (error) {
+        xhr.removeEventListener("loadend", onLoadEnd);
+        const duration = performance.now() - startTime;
+        let errorMessage = "XHR failed";
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === "string") {
+          errorMessage = error;
+        } else {
+          try {
+            errorMessage = JSON.stringify(error);
+          } catch {
+            errorMessage = "Unknown XHR error";
+          }
+        }
+
+        service.logApiCall({
+          url: service.stripUrlParams(url),
+          method,
+          duration,
+          statusCode: 0,
+          requestBody,
+          error: errorMessage,
+        });
+        throw error;
+      }
+    };
   }
 
   private handleRouteChange = () => {

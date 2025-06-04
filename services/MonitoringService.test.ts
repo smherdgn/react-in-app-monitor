@@ -286,6 +286,22 @@ describe('MonitoringService', () => {
     });
   });
 
+  describe('XMLHttpRequest Override', () => {
+    it('should intercept XMLHttpRequest calls and log API_CALL data', () => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/xhr-test');
+      xhr.send('foo=bar');
+
+      expectLogAdded(LogEntryType.API_CALL, {
+        url: '/api/xhr-test',
+        method: 'POST',
+        statusCode: 200,
+        requestBody: 'foo=bar',
+        responseBody: 'OK',
+      });
+    });
+  });
+
   describe('Route Tracking', () => {
     beforeEach(() => {
         mockWin.location.pathname = '/initial-route';

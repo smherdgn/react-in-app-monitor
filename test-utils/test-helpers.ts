@@ -872,6 +872,47 @@ export const mockWindow = () => {
         return JSON.parse(textBody);
       }
     },
+    XMLHttpRequest: class MockXMLHttpRequest {
+      method = '';
+      url = '';
+      status = 200;
+      responseText = 'OK';
+      readyState = 0;
+      onreadystatechange: ((this: any, ev: any) => any) | null = null;
+      _listeners: Record<string, Function[]> = {};
+      open(method: string, url: string) {
+        this.method = method;
+        this.url = url;
+        this.readyState = 1;
+      }
+      addEventListener(type: string, cb: Function) {
+        if (!this._listeners[type]) this._listeners[type] = [];
+        this._listeners[type].push(cb);
+      }
+      removeEventListener(type: string, cb: Function) {
+        if (this._listeners[type]) {
+          this._listeners[type] = this._listeners[type].filter((f) => f !== cb);
+        }
+      }
+      dispatchEvent(event: any) {
+        (this._listeners[event.type] || []).forEach((cb) => cb.call(this, event));
+        const handler = (this as any)['on' + event.type];
+        if (typeof handler === 'function') handler.call(this, event);
+        return true;
+      }
+      send = mockFn(function (this: any, _body?: any) {
+        this.readyState = 4;
+        if (this.onreadystatechange) {
+          this.onreadystatechange(new Event('readystatechange'));
+        }
+        this.dispatchEvent(new Event('loadend'));
+      });
+      setRequestHeader(_h: string, _v: string) {}
+      getResponseHeader(header: string) {
+        if (header.toLowerCase() === 'content-type') return 'text/plain';
+        return null;
+      }
+    },
     URL: URLCtor,
     URLSearchParams: URLSearchParamsCtor,
     document: (typeof globalThis !== 'undefined' && (globalThis as any).document) ? (globalThis as any).document : {
