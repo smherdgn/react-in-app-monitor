@@ -71,6 +71,10 @@ The `App.tsx` file demonstrates:
 *   Interacting with `MonitoringService` to log custom events, and it implicitly showcases automatic tracking of navigation, errors, etc., as you interact with the demo page (if demo interactions are added to App.tsx).
 *   A `<TestRequestPanel />` with buttons that fire example API requests and trigger a test error so you can immediately see logs populate in the dashboard.
 
+### `/test` Page
+
+After starting the local server, you can also navigate to `http://localhost:<port>/test` (replace `<port>` with the port printed by your server) to open a dedicated test page. It includes the same set of buttons from `<TestRequestPanel />` so you can fire `GET`, `POST`, `PUT`, `DELETE` and Axios or thunk-based requests. These buttons exist purely to try different request types and trigger a sample error, letting you see how the dashboard records each action in real time.
+
 ## Getting Started / Integration
 
 This tool is designed to be dropped into an existing React project.
