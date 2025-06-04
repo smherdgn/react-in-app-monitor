@@ -1,4 +1,6 @@
 import React from "react";
+import "./dashboard-styles.css";
+import "./MonitoringDashboard.css";
 
 // Unified Dashboard Complete Component - MonitoringDashboard.jsx
 const { useState, useEffect, useMemo, useCallback } = React;
