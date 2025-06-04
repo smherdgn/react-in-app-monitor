@@ -1,11 +1,11 @@
 
 # In-App React Monitoring Tool
 
-A fully self-contained, embeddable React in-app monitoring tool with zero external npm dependencies. Designed for easy integration into any existing React/Vite project.
+A fully self-contained, embeddable React in-app monitoring tool with minimal external dependencies. Designed for easy integration into any existing React/Vite project.
 
 ## Key Features
 
-*   **Zero External Dependencies**: No `npm install` needed for this tool. It's built with vanilla React and browser APIs.
+*   **Minimal External Dependencies**: Install the package dependencies (React, Redux, lucide-react, etc.) with `npm install` before running the tool.
 *   **Automatic Data Collection**:
     *   **Page Navigation**: Tracks route changes (pushState, replaceState, popstate, hashchange). Query parameters are stripped by default when grouping pages for insights, but full paths are logged.
     *   **API Calls**: Intercepts `fetch` requests to log URL, method, duration, status code, and request/response bodies (for text-based content).
@@ -85,7 +85,7 @@ This tool is designed to be dropped into an existing React project.
 
 ### Installation
 
-1.  **Copy Files**: Copy all the provided source files (`.ts`, `.tsx` from `components`, `services`, `hooks`, `utils` folders and root files like `constants.ts`, `types.ts`) into a dedicated directory within your React project (e.g., `src/monitoring-tool/`).
+1.  **Copy Files**: Copy all the provided source files (`.ts`, `.tsx`, and CSS files from `components`, `services`, `hooks`, `utils` folders and root files like `constants.ts`, `types.ts`) into a dedicated directory within your React project (e.g., `src/monitoring-tool/`).
 
     ```
     your-project/
@@ -103,10 +103,11 @@ This tool is designed to be dropped into an existing React project.
     *Note: The `App.tsx`, `index.tsx`, and `index.html` from the monitoring tool's source are primarily for its standalone example and demonstration. You'll integrate the tool's components into your existing project structure.*
 
 2.  **Adjust Paths (if necessary)**: If you place the files differently, ensure import paths within the monitoring tool files are correct. The provided structure assumes relative imports.
+3.  **Install Dependencies**: Run `npm install` to ensure all required packages (including `lucide-react` for icons) are available in your project.
 
 ### Styling and Theming Integration
 
-The `MonitoringDashboard` component manages its own styling and theming (light/dark modes) internally. To control the theme:
+The `MonitoringDashboard` component manages its own theming (light/dark) but relies on the accompanying CSS files for layout (MonitoringDashboard.css, dashboard-styles.css, test-panel.css). Make sure these CSS files are imported by your bundler or included in your global styles.
 
 1.  **Pass the `theme` Prop**: The host application must pass a `theme` prop to the `<MonitoringDashboard />` component. This prop determines whether the dashboard renders in light or dark mode.
     *   Allowed values: `'light'` or `'dark'`.
@@ -340,7 +341,7 @@ The entire UI is responsive and adapts to light/dark themes based on the `theme`
 *   **Core Logic**: `services/MonitoringService.ts`
 *   **Data Storage**: `utils/indexedDB.ts` (uses IndexedDB directly, no wrapper library)
 *   **State Management**: React hooks (`useState`, `useEffect`, `useMemo`, `useCallback`) and a custom hook `hooks/useIndexedDB.ts`.
-*   **Styling**: Encapsulated inline styles and JavaScript style objects within `MonitoringDashboard.tsx` and its child components, driven by the `theme` prop.
+*   **Styling**: Uses CSS files (`MonitoringDashboard.css`, `dashboard-styles.css`, and `test-panel.css`) plus inline theme variables.
 
 ## Development & Customization
 
