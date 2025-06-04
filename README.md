@@ -271,6 +271,7 @@ import { MonitoringDashboard } from './monitoring-tool/components/MonitoringDash
     `in-app-monitoring-tool-0.0.0.tgz` in the project root.
 3.  In your other project, install the tarball:
 
+ 
 If you want to maintain this monitoring tool as a separate repository and reuse
 it across multiple projects, you can package it as a small npm dependency:
 
@@ -281,6 +282,7 @@ it across multiple projects, you can package it as a small npm dependency:
 3.  In another project, install the tarball directly:
 
 
+ 
     ```bash
     npm install ../path/to/in-app-monitoring-tool-0.0.0.tgz
     ```
@@ -292,7 +294,10 @@ it across multiple projects, you can package it as a small npm dependency:
     ```tsx
     import { MonitoringDashboard } from 'in-app-monitoring-tool';
     ```
-
+ 
+Both approaches keep the monitoring code isolated so you can update it
+independently of your host applications.
+ 
 
 ## Showcase / How it Works
 
