@@ -14,6 +14,9 @@ import './components/SimpleBarChart.test';
 import './components/SimpleLineChart.test';
 import './components/MonitoringDashboard.test';
 import './components/TestRequestPanel.test';
+import './components/AxiosTestPanel.test';
+import './components/ReduxToolkitTestPanel.test';
+import './components/TestScreen.test';
 
 async function main() {
   try {

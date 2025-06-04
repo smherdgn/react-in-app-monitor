@@ -33,6 +33,9 @@ A fully self-contained, embeddable React in-app monitoring tool with zero extern
 *   **Responsive Design**: Mobile-friendly layout.
 *   **Accessibility**: Uses ARIA attributes and provides keyboard navigation for interactive elements.
 
+## Test Request Screen
+Use the `<TestScreen />` component to generate demo logs. It contains buttons that send requests via plain `fetch`, via an axios-like helper, and through a simplified Redux Toolkit async action.
+
 ## Exporting Logs
 Use the download icon in the dashboard header to export the currently filtered logs as a JSON file for offline analysis or sharing.
 
@@ -69,7 +72,7 @@ The `App.tsx` file demonstrates:
 *   Rendering the `<MonitoringDashboard />`.
 *   Controlling the dashboard's theme (light/dark) via props.
 *   Interacting with `MonitoringService` to log custom events, and it implicitly showcases automatic tracking of navigation, errors, etc., as you interact with the demo page (if demo interactions are added to App.tsx).
-*   A `<TestRequestPanel />` with buttons that fire example API requests and trigger a test error so you can immediately see logs populate in the dashboard.
+*   A `<TestScreen />` that includes panels for plain fetch, axios-style requests, and a Redux Toolkit style async action so you can easily generate logs.
 
 ## Getting Started / Integration
 
